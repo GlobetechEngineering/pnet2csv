@@ -17,7 +17,7 @@
 #include "app_utils.h"
 #include "app_gsdml.h"
 #include "app_log.h"
-#include "sampleapp_common.h"
+#include "logger_common.h"
 #include "osal.h"
 #include "pnal.h"
 #include <pnet_api.h>

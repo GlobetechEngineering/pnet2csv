@@ -13,7 +13,7 @@
  * full license information.
  ********************************************************************/
 
-#include "sampleapp_common.h"
+#include "logger_common.h"
 
 #include "app_utils.h"
 #include "app_gsdml.h"

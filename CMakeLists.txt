@@ -227,7 +227,7 @@ install (FILES
   )
 
 add_subdirectory (src)
-add_subdirectory (samples/pn_dev)
+add_subdirectory (pn_logger)
 
 if (CMAKE_PROJECT_NAME STREQUAL PROFINET AND BUILD_TESTING)
   add_subdirectory (test)
@@ -244,6 +244,7 @@ if (CMAKE_PROJECT_NAME STREQUAL PROFINET)
         -S "*.patch"
         ${PROFINET_SOURCE_DIR}/doc/*.rst
         ${PROFINET_SOURCE_DIR}/include/
+        ${PROFINET_SOURCE_DIR}/pn_logger/
         ${PROFINET_SOURCE_DIR}/samples/
         ${PROFINET_SOURCE_DIR}/src/
         ${PROFINET_SOURCE_DIR}/test/

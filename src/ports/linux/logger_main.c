@@ -15,7 +15,7 @@
 
 #define _GNU_SOURCE /* For asprintf() */
 
-#include "sampleapp_common.h"
+#include "logger_common.h"
 #include "app_gsdml.h"
 #include "app_log.h"
 #include "app_utils.h"
@@ -319,7 +319,7 @@ void app_set_led (uint16_t id, bool led_state)
 
    char id_str[7] = {0}; /** Terminated string */
    const char * argv[4];
-
+   
    sprintf (id_str, "%u", id);
    id_str[sizeof (id_str) - 1] = '\0';
 

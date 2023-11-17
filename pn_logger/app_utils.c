@@ -18,7 +18,7 @@
 #include "app_utils.h"
 #include "app_log.h"
 #include "app_gsdml.h"
-#include "sampleapp_common.h"
+#include "logger_common.h"
 #include "osal.h"
 #include "osal_log.h" /* For LOG_LEVEL */
 #include "pnal.h"
@@ -32,16 +32,137 @@
 #define GET_HIGH_BYTE(id) ((id >> 8) & 0xFF)
 #define GET_LOW_BYTE(id)  (id & 0xFF)
 
+int app_ar_add_arep (app_api_t * api, uint32_t arep, app_ar_t ** ar)
+{
+   uint16_t i;
+
+   CC_ASSERT (api != NULL);
+   CC_ASSERT (ar != NULL);
+   for (i = 0; i < PNET_MAX_AR; ++i)
+   {
+      if (api->ar[i].arep == UINT32_MAX)
+      {
+         api->ar[i].arep = arep;
+         api->ar[i].events = 0;
+         *ar = api->ar + i;
+         return 1;
+      }
+   }
+   return 0;
+}
+
+uint32_t app_ar_arep (app_ar_t * ar)
+{
+   CC_ASSERT (ar != NULL);
+   return ar->arep;
+}
+
+void app_ar_event_set (app_ar_t * ar, uint32_t event)
+{
+   CC_ASSERT (ar != NULL);
+   ar->events |= event;
+}
+
+int app_ar_event_clr (app_ar_t * ar, uint32_t event)
+{
+   CC_ASSERT (ar != NULL);
+   if (ar->events & event)
+   {
+      ar->events &= ~event;
+      return 1;
+   }
+   return 0;
+}
+
+void app_ar_iterator_init (
+   app_ar_iterator_t * iterator,
+   app_api_t * api)
+{
+   CC_ASSERT (iterator != NULL);
+   CC_ASSERT (api != NULL);
+   iterator->ar = api->ar;
+   iterator->index = -1;
+   iterator->modified = false;
+}
+
+int app_ar_iterator_next (app_ar_iterator_t * iterator, app_ar_t ** ar)
+{
+#if PNET_MAX_AR > 1
+   uint16_t i;
+   uint16_t j;
+#endif
+
+   CC_ASSERT (iterator != NULL);
+   CC_ASSERT (ar != NULL);
+   ++iterator->index;
+   if (
+      (iterator->index < PNET_MAX_AR) &&
+      (iterator->ar[iterator->index].arep != UINT32_MAX))
+   {
+      *ar = iterator->ar + iterator->index;
+      return 1;
+   }
+#if PNET_MAX_AR > 1
+   else if (iterator->modified)
+   {
+      for (i = 0; i < PNET_MAX_AR; ++i)
+      {
+         if (iterator->ar[i].arep == UINT32_MAX)
+         {
+            for (j = i + 1; j < PNET_MAX_AR; ++j)
+            {
+               if (iterator->ar[j].arep != UINT32_MAX)
+               {
+                  iterator->ar[i] = iterator->ar[j];
+                  iterator->ar[j].arep = UINT32_MAX;
+                  break;
+               }
+            }
+            if (j >= PNET_MAX_AR - 1)
+            {
+               break;
+            }
+         }
+      }
+   }
+#endif
+   return 0;
+}
+
+int app_ar_iterator_done (app_ar_iterator_t * iterator)
+{
+   CC_ASSERT (iterator != NULL);
+   if (
+      (iterator->index < 0) ||
+      ((iterator->index < PNET_MAX_AR) &&
+       (iterator->ar[iterator->index].arep != UINT32_MAX)))
+   {
+      return 0;
+   }
+   return 1;
+}
+
+void app_ar_iterator_delete_current (app_ar_iterator_t * iterator)
+{
+   CC_ASSERT (iterator != NULL);
+   CC_ASSERT (iterator->index >= 0);
+   if (iterator->index < PNET_MAX_AR)
+   {
+      iterator->ar[iterator->index].arep = UINT32_MAX;
+      iterator->modified = true;
+   }
+}
+
 void app_utils_ip_to_string (pnal_ipaddr_t ip, char * outputstring)
 {
    snprintf (
       outputstring,
       PNAL_INET_ADDRSTR_SIZE,
       "%u.%u.%u.%u",
-      (uint8_t) ((ip >> 24) & 0xFF),
-      (uint8_t) ((ip >> 16) & 0xFF),
-      (uint8_t) ((ip >> 8) & 0xFF),
-      (uint8_t) (ip & 0xFF));
+      (uint8_t)((ip >> 24) & 0xFF),
+      (uint8_t)((ip >> 16) & 0xFF),
+      (uint8_t)((ip >> 8) & 0xFF),
+      (uint8_t)(ip & 0xFF));
 }
 
 void app_utils_mac_to_string (pnet_ethaddr_t mac, char * outputstring)
@@ -97,19 +218,6 @@ const char * app_utils_ioxs_to_string (pnet_ioxs_values_t ioxs)
    return s;
 }
 
-char * app_utils_get_subslot_string (const app_subslot_t * subslot)
-{
-   static char buf[40];
-   snprintf (
-      buf,
-      sizeof (buf),
-      "[%u,%u,\"%s\"]",
-      subslot->slot_nbr,
-      subslot->subslot_nbr,
-      subslot->submodule_name);
-   return buf;
-}
-
 void app_utils_get_error_code_strings (
    uint16_t err_cls,
    uint16_t err_code,
@@ -139,6 +247,9 @@ void app_utils_get_error_code_strings (
          break;
       case PNET_ERROR_CODE_2_ABORT_AR_RELEASE_IND_RECEIVED:
          *err_code_str = "AR release indication received";
+         break;
+      case PNET_ERROR_CODE_2_ABORT_AR_RPC_READ_ERROR:
+         *err_code_str = "AR RPC-Read error";
          break;
       case PNET_ERROR_CODE_2_ABORT_DCP_STATION_NAME_CHANGED:
          *err_code_str = "DCP station name changed, "
@@ -321,14 +432,6 @@ int app_utils_pnet_cfg_init_default (pnet_cfg_t * cfg)
     * as this is better supported by Wireshark.
     */
    cfg->use_qualified_diagnosis = false;
-
-#if PNET_OPTION_DRIVER_ENABLE
-   cfg->driver_enable = false;
-   cfg->driver_config.mera.vcam_base_id = PNET_LAN9662_VCAM_BASE;
-   cfg->driver_config.mera.rtp_base_id = PNET_LAN9662_RTP_BASE;
-   cfg->driver_config.mera.wal_base_id = PNET_LAN9662_WAL_BASE;
-   cfg->driver_config.mera.ral_base_id = PNET_LAN9662_RAL_BASE;
-#endif
 
    return 0;
 }
@@ -540,26 +643,39 @@ void app_utils_print_network_config (
 void app_utils_print_ioxs_change (
    const app_subslot_t * subslot,
    const char * ioxs_str,
-   uint8_t iocs_current,
-   uint8_t iocs_new)
+   uint8_t ioxs_current,
+   uint8_t ioxs_new)
 {
-   if (iocs_current != iocs_new)
+   if (ioxs_current != ioxs_new)
    {
-      if (iocs_new == PNET_IOXS_BAD || iocs_new == PNET_IOXS_GOOD)
+      if (ioxs_new == PNET_IOXS_BAD)
       {
          APP_LOG_DEBUG (
-            "  %-40s PLC reports %s %s \n",
-            app_utils_get_subslot_string (subslot),
+            "PLC reports %s BAD for slot %u subslot %u \"%s\"\n",
             ioxs_str,
-            app_utils_ioxs_to_string (iocs_new));
+            subslot->slot_nbr,
+            subslot->subslot_nbr,
+            subslot->submodule_name);
       }
-      else if (iocs_new != PNET_IOXS_GOOD)
+      else if (ioxs_new == PNET_IOXS_GOOD)
       {
-         APP_LOG_WARNING (
-            "  %-40s PLC reports %s 0x%x Is it in STOP mode?\n",
-            app_utils_get_subslot_string (subslot),
+         APP_LOG_DEBUG (
+            "PLC reports %s GOOD for slot %u subslot %u \"%s\".\n",
             ioxs_str,
-            iocs_new);
+            subslot->slot_nbr,
+            subslot->subslot_nbr,
+            subslot->submodule_name);
+      }
+      else if (ioxs_new != PNET_IOXS_GOOD)
+      {
+         APP_LOG_DEBUG (
+            "PLC reports %s %u for slot %u subslot %u \"%s\".\n"
+            "  Is the PLC in STOP mode?\n",
+            ioxs_str,
+            ioxs_new,
+            subslot->slot_nbr,
+            subslot->subslot_nbr,
+            subslot->submodule_name);
       }
    }
 }

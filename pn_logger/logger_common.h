@@ -13,8 +13,8 @@
  * full license information.
  ********************************************************************/
 
-#ifndef SAMPLEAPP_COMMON_H
-#define SAMPLEAPP_COMMON_H
+#ifndef LOGGER_COMMON_H
+#define LOGGER_COMMON_H
 
 #include "osal.h"
 #include "pnal.h"
@@ -166,4 +166,4 @@ bool app_get_button (uint16_t id);
 }
 #endif
 
-#endif /* SAMPLEAPP_COMMON_H */
+#endif /* LOGGER_COMMON_H */

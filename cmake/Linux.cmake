@@ -65,18 +65,18 @@ target_link_libraries(profinet
 
 target_include_directories(pn_dev
   PRIVATE
-  samples/pn_dev
+  pn_logger
   src/ports/linux
   )
 
 target_sources(pn_dev
   PRIVATE
-  samples/pn_dev/sampleapp_common.c
-  samples/pn_dev/app_utils.c
-  samples/pn_dev/app_log.c
-  samples/pn_dev/app_gsdml.c
-  samples/pn_dev/app_data.c
-  src/ports/linux/sampleapp_main.c
+  pn_logger/logger_common.c
+  pn_logger/app_utils.c
+  pn_logger/app_log.c
+  pn_logger/app_gsdml.c
+  pn_logger/app_data.c
+  src/ports/linux/logger_main.c
   )
 
 target_compile_options(pn_dev
