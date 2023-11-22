@@ -94,10 +94,9 @@ extern "C" {
 #define APP_GSDML_LOGBOOK_ERROR_CODE_2 0x00       /* Manufacturer specific */
 #define APP_GSDML_LOGBOOK_ENTRY_DETAIL 0xFEE1DEAD /* Manufacturer specific */
 
-#define APP_GSDML_PARAMETER_DATAYPELIST_IDX    123
+#define APP_GSDML_PARAMETER_DATATYPELIST_IDX    123
 
-/* Use same size for all parameters in example */
-#define APP_GSDML_PARAMETER_LENGTH 64
+#define APP_GSDML_DATATYPELIST_LENGTH 64
 
 #define APP_GSDML_DEFAULT_MAUTYPE 0x10 /* Copper 100 Mbit/s Full duplex */
 
