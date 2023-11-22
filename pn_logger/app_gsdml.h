@@ -39,13 +39,13 @@ extern "C" {
 
 #define APP_GSDML_API 0
 
-#define APP_GSDML_DEFAULT_STATION_NAME "rt-labs-dev"
+#define APP_GSDML_DEFAULT_STATION_NAME "pn-logger"
 
 /* GSDML tag: VendorID */
-#define APP_GSDML_VENDOR_ID 0x0493
+#define APP_GSDML_VENDOR_ID 0xff1d
 
 /* GSDML tag: DeviceID */
-#define APP_GSDML_DEVICE_ID 0x0002
+#define APP_GSDML_DEVICE_ID 0x0001
 
 /* Used in DCP communication */
 #define APP_GSDML_OEM_VENDOR_ID 0xcafe
@@ -77,10 +77,10 @@ extern "C" {
    (PNET_SUPPORTED_IM1 | PNET_SUPPORTED_IM2 | PNET_SUPPORTED_IM3)
 
 /* GSDML tag: OrderNumber */
-#define APP_GSDML_ORDER_ID "12345 Abcdefghijk"
+#define APP_GSDML_ORDER_ID "N/A"
 
 /* GSDML tag: ModuleInfo / Name */
-#define APP_GSDML_PRODUCT_NAME "P-Net Sample Application"
+#define APP_GSDML_PRODUCT_NAME "Profinet data logger"
 
 /* GSDML tag: MinDeviceInterval */
 #define APP_GSDML_MIN_DEVICE_INTERVAL 32 /* 1 ms */
@@ -94,12 +94,10 @@ extern "C" {
 #define APP_GSDML_LOGBOOK_ERROR_CODE_2 0x00       /* Manufacturer specific */
 #define APP_GSDML_LOGBOOK_ENTRY_DETAIL 0xFEE1DEAD /* Manufacturer specific */
 
-#define APP_GSDML_PARAMETER_1_IDX    123
-#define APP_GSDML_PARAMETER_2_IDX    124
-#define APP_GSDML_PARAMETER_ECHO_IDX 125
+#define APP_GSDML_PARAMETER_DATAYPELIST_IDX    123
 
 /* Use same size for all parameters in example */
-#define APP_GSDML_PARAMETER_LENGTH 4
+#define APP_GSDML_PARAMETER_LENGTH 64
 
 #define APP_GSDML_DEFAULT_MAUTYPE 0x10 /* Copper 100 Mbit/s Full duplex */
 
@@ -138,18 +136,10 @@ typedef struct
    uint16_t length;
 } app_gsdml_param_t;
 
-#define APP_GSDML_MOD_ID_8_0_DIGITAL_IN     0x00000030
-#define APP_GSDML_MOD_ID_0_8_DIGITAL_OUT    0x00000031
-#define APP_GSDML_MOD_ID_8_8_DIGITAL_IN_OUT 0x00000032
-#define APP_GSDML_MOD_ID_ECHO               0x00000040
-#define APP_GSDML_SUBMOD_ID_DIGITAL_IN      0x00000130
-#define APP_GSDML_SUBMOD_ID_DIGITAL_OUT     0x00000131
-#define APP_GSDML_SUBMOD_ID_DIGITAL_IN_OUT  0x00000132
-#define APP_GSDML_SUBMOD_ID_ECHO            0x00000140
-#define APP_GSDML_INPUT_DATA_DIGITAL_SIZE   1 /* bytes */
-#define APP_GSDML_OUTPUT_DATA_DIGITAL_SIZE  1 /* bytes */
-#define APP_GSDML_INPUT_DATA_ECHO_SIZE      8 /* bytes */
-#define APP_GSDML_OUTPUT_DATA_ECHO_SIZE     APP_GSDML_INPUT_DATA_ECHO_SIZE
+#define APP_GSDML_MOD_ID_LOGW64    0x00000030
+#define APP_GSDML_SUBMOD_ID_LOGW64      0x00000130
+#define APP_GSDML_INPUT_DATA_DIGITAL_SIZE  1 /* bytes */
+#define APP_GSDML_OUTPUT_DATA_DIGITAL_SIZE  136 /* bytes */
 #define APP_GSDML_ALARM_PAYLOAD_SIZE        1 /* bytes */
 
 /**

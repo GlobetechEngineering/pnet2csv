@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<ISO15745Profile xmlns="http://www.profibus.com/GSDML/2003/11/DeviceProfile" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.profibus.com/GSDML/2003/11/DeviceProfile ..\xsd\GSDML-DeviceProfile-V2.4.xsd">
+   <!-- ProfileHeader definition as defined in ISO 15745-1. Please do not change the content. -->
+   <ProfileHeader>
+      <ProfileIdentification>PROFINET Device Profile</ProfileIdentification>
+      <ProfileRevision>1.00</ProfileRevision>
+      <ProfileName>Device Profile for PROFINET Devices</ProfileName>
+      <ProfileSource>PROFIBUS Nutzerorganisation e. V. (PNO)</ProfileSource>
+      <ProfileClassID>Device</ProfileClassID>
+      <ISO15745Reference>
+         <ISO15745Part>4</ISO15745Part>
+         <ISO15745Edition>1</ISO15745Edition>
+         <ProfileTechnology>GSDML</ProfileTechnology>
+      </ISO15745Reference>
+   </ProfileHeader>
+   <ProfileBody>
+	  <!-- See https://www.profibus.com/IM/Man_ID_Table.xml
+	       "F000 - FFFF reserved for manufacturer-independent profiles for PROFINET"
+		   f1d chosen randomly
+      -->
+      <DeviceIdentity VendorID="0xff1d" DeviceID="0x0001">
+         <InfoText TextId="IDT_INFO_Device"/>
+         <VendorName Value="Globetech"/>
+      </DeviceIdentity>
+      <DeviceFunction>
+         <Family MainFamily="I/O" ProductFamily="High Speed Data Acquisition"/>
+      </DeviceFunction>
+      <ApplicationProcess>
+         <DeviceAccessPointList>
+			<!-- MinDeviceInterval="32" = 1 ms -->
+            <DeviceAccessPointItem ID="IDD_1" PNIO_Version="V2.4" PhysicalSlots="0..1" ModuleIdentNumber="0x00000001" MinDeviceInterval="32" DNS_CompatibleName="pn-logger" FixedInSlots="0" ObjectUUID_LocalIndex="1" DeviceAccessSupported="false" MultipleWriteSupported="true" CheckDeviceID_Allowed="true" NameOfStationNotTransferable="false" LLDP_NoD_Supported="true" ResetToFactoryModes="1..2">
+               <ModuleInfo>
+                  <Name TextId="IDT_MODULE_NAME_DAP1"/>
+                  <InfoText TextId="IDT_INFO_DAP1"/>
+                  <VendorName Value="Globetech"/>
+                  <OrderNumber Value="N/A"/>
+                  <HardwareRelease Value="A1.0"/>
+                  <SoftwareRelease Value="V0.1.0"/>
+               </ModuleInfo>
+               <CertificationInfo ConformanceClass="B" ApplicationClass="" NetloadClass="I"/>
+               <IOConfigData MaxInputLength="244" MaxOutputLength="244"/>
+               <UseableModules>
+                  <ModuleItemRef ModuleItemTarget="IDM_30" FixedInSlots="1"/>
+               </UseableModules>
+               <VirtualSubmoduleList>
+                  <VirtualSubmoduleItem ID="IDS_1" SubmoduleIdentNumber="0x00000001" Writeable_IM_Records="1 2 3" MayIssueProcessAlarm="false">
+                     <IOData/>
+                     <ModuleInfo>
+                        <Name TextId="IDT_MODULE_NAME_DAP1"/>
+                        <InfoText TextId="IDT_INFO_DAP1"/>
+                     </ModuleInfo>
+                  </VirtualSubmoduleItem>
+               </VirtualSubmoduleList>
+               <SystemDefinedSubmoduleList>
+                  <InterfaceSubmoduleItem ID="IDS_I" SubmoduleIdentNumber="0x00008000" SubslotNumber="32768" TextId="IDT_NAME_IS" SupportedRT_Classes="RT_CLASS_1" SupportedProtocols="SNMP;LLDP" NetworkComponentDiagnosisSupported="false" PTP_BoundarySupported="true" DCP_BoundarySupported="true">
+                     <ApplicationRelations StartupMode="Advanced">
+                        <TimingProperties SendClock="32" ReductionRatio="1 2 4 8 16 32 64 128 256 512"/>
+                     </ApplicationRelations>
+                  </InterfaceSubmoduleItem>
+                  <PortSubmoduleItem ID="IDS_P1" SubmoduleIdentNumber="0x00008001" SubslotNumber="32769" TextId="IDT_NAME_PS1" MaxPortRxDelay="350" MaxPortTxDelay="160">
+                     <MAUTypeList>
+                        <!--
+MAUTypeItems shall match the actual network interfaces of the device.
+Current list works for Raspberry Pi, Linksys usb/ethernet dongle and xmc sample targets
+-->
+                        <MAUTypeItem Value="30"/>
+                        <MAUTypeItem Value="16"/>
+                        <MAUTypeItem Value="5"/>
+                     </MAUTypeList>
+                  </PortSubmoduleItem>
+               </SystemDefinedSubmoduleList>
+               <Graphics>
+                  <GraphicItemRef Type="DeviceSymbol" GraphicItemTarget="RT-LabsStackImage"/>
+               </Graphics>
+            </DeviceAccessPointItem>
+         </DeviceAccessPointList>
+         <ModuleList>
+            <ModuleItem ID="IDM_30" ModuleIdentNumber="0x00000030">
+               <ModuleInfo>
+                  <Name TextId="TOK_Name_Module_W64"/>
+                  <InfoText TextId="TOK_InfoText_Module_W64"/>
+                  <HardwareRelease Value="1.0"/>
+                  <SoftwareRelease Value="1.0"/>
+               </ModuleInfo>
+               <VirtualSubmoduleList>
+                  <VirtualSubmoduleItem ID="IDSM_130" SubmoduleIdentNumber="0x0130" MayIssueProcessAlarm="true">
+                     <IOData>
+                        <Output Consistency="All items consistency">
+						   <DataItem DataType="TimeStamp"  TextId="TOK_Output_DataItem_Timestamp"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_1"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_2"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_3"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_4"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_5"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_6"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_7"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_8"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_9"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_10"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_11"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_12"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_13"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_14"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_15"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_16"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_17"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_18"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_19"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_20"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_21"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_22"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_23"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_24"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_25"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_26"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_27"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_28"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_29"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_30"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_31"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_32"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_33"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_34"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_35"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_36"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_37"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_38"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_39"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_40"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_41"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_42"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_43"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_44"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_45"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_46"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_47"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_48"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_49"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_50"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_51"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_52"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_53"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_54"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_55"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_56"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_57"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_58"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_59"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_60"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_61"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_62"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_63"/>
+                           <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_64"/>
+                        </Output>
+                     </IOData>
+					 <RecordDataList>
+						<ParameterRecordDataItem Index="123" Length="64">
+							<Name TextId="TOK_parameter_datatypelist"/>
+							<Ref DataType="VisibleString" Length="64" ByteOffset="0" DefaultValue="" Changeable="true" Visible="true" TextId="TOK_parameter_datatypelist_ref"/>
+						</ParameterRecordDataItem>
+					 </RecordDataList>
+                     <ModuleInfo>
+                        <Name TextId="TOK_Name_Module_W64"/>
+                        <InfoText TextId="TOK_InfoText_Module_W64"/>
+                     </ModuleInfo>
+                  </VirtualSubmoduleItem>
+               </VirtualSubmoduleList>
+            </ModuleItem>
+         </ModuleList>
+         <LogBookEntryList>
+            <LogBookEntryItem Status="2130510">
+               <!--Custom log book entry for full storage-->
+               <!--Error code 0x20  Error decode 0x82  Error code 1 0x4E-->
+               <ErrorCode2Value>
+                  <Name TextId="IDT_CUSTOM_LOGBOOK_1"/>
+               </ErrorCode2Value>
+            </LogBookEntryItem>
+         </LogBookEntryList>
+         <GraphicsList>
+            <GraphicItem ID="RT-LabsStackImage" GraphicFile="GSDML-RT-LABS-STACK"/>
+         </GraphicsList>
+         <ExternalTextList>
+            <PrimaryLanguage>
+               <Text TextId="IDT_INFO_Device" Value="Profinet data logger"/>
+               <Text TextId="IDT_MODULE_NAME_DAP1" Value="Profinet data logger"/>
+               <Text TextId="IDT_INFO_DAP1" Value="Profinet data logger"/>
+               <Text TextId="IDT_CUSTOM_LOGBOOK_1" Value="Full storage"/>
+               <Text TextId="IDT_NAME_IS" Value="X1"/>
+               <Text TextId="IDT_NAME_PS1" Value="X1 P1"/>
+               <Text TextId="IDT_NAME_PS2" Value="X1 P2"/>
+               <!--module name-->
+               <Text TextId="TOK_Name_Module_W64" Value="LogW64"/>
+               <!--module info -->
+               <Text TextId="TOK_InfoText_Module_W64" Value="Logger 64 words"/>
+               <!--dataitem name-->
+               <Text TextId="TOK_Output_DataItem_Timestamp" Value="Timestamp"/>
+               <Text TextId="TOK_Output_DataItem_W64_1" Value="Word 1"/>
+               <Text TextId="TOK_Output_DataItem_W64_2" Value="Word 2"/>
+               <Text TextId="TOK_Output_DataItem_W64_3" Value="Word 3"/>
+               <Text TextId="TOK_Output_DataItem_W64_4" Value="Word 4"/>
+               <Text TextId="TOK_Output_DataItem_W64_5" Value="Word 5"/>
+               <Text TextId="TOK_Output_DataItem_W64_6" Value="Word 6"/>
+               <Text TextId="TOK_Output_DataItem_W64_7" Value="Word 7"/>
+               <Text TextId="TOK_Output_DataItem_W64_8" Value="Word 8"/>
+               <Text TextId="TOK_Output_DataItem_W64_9" Value="Word 9"/>
+               <Text TextId="TOK_Output_DataItem_W64_10" Value="Word 10"/>
+               <Text TextId="TOK_Output_DataItem_W64_11" Value="Word 11"/>
+               <Text TextId="TOK_Output_DataItem_W64_12" Value="Word 12"/>
+               <Text TextId="TOK_Output_DataItem_W64_13" Value="Word 13"/>
+               <Text TextId="TOK_Output_DataItem_W64_14" Value="Word 14"/>
+               <Text TextId="TOK_Output_DataItem_W64_15" Value="Word 15"/>
+               <Text TextId="TOK_Output_DataItem_W64_16" Value="Word 16"/>
+               <Text TextId="TOK_Output_DataItem_W64_17" Value="Word 17"/>
+               <Text TextId="TOK_Output_DataItem_W64_18" Value="Word 18"/>
+               <Text TextId="TOK_Output_DataItem_W64_19" Value="Word 19"/>
+               <Text TextId="TOK_Output_DataItem_W64_20" Value="Word 20"/>
+               <Text TextId="TOK_Output_DataItem_W64_21" Value="Word 21"/>
+               <Text TextId="TOK_Output_DataItem_W64_22" Value="Word 22"/>
+               <Text TextId="TOK_Output_DataItem_W64_23" Value="Word 23"/>
+               <Text TextId="TOK_Output_DataItem_W64_24" Value="Word 24"/>
+               <Text TextId="TOK_Output_DataItem_W64_25" Value="Word 25"/>
+               <Text TextId="TOK_Output_DataItem_W64_26" Value="Word 26"/>
+               <Text TextId="TOK_Output_DataItem_W64_27" Value="Word 27"/>
+               <Text TextId="TOK_Output_DataItem_W64_28" Value="Word 28"/>
+               <Text TextId="TOK_Output_DataItem_W64_29" Value="Word 29"/>
+               <Text TextId="TOK_Output_DataItem_W64_30" Value="Word 30"/>
+               <Text TextId="TOK_Output_DataItem_W64_31" Value="Word 31"/>
+               <Text TextId="TOK_Output_DataItem_W64_32" Value="Word 32"/>
+               <Text TextId="TOK_Output_DataItem_W64_33" Value="Word 33"/>
+               <Text TextId="TOK_Output_DataItem_W64_34" Value="Word 34"/>
+               <Text TextId="TOK_Output_DataItem_W64_35" Value="Word 35"/>
+               <Text TextId="TOK_Output_DataItem_W64_36" Value="Word 36"/>
+               <Text TextId="TOK_Output_DataItem_W64_37" Value="Word 37"/>
+               <Text TextId="TOK_Output_DataItem_W64_38" Value="Word 38"/>
+               <Text TextId="TOK_Output_DataItem_W64_39" Value="Word 39"/>
+               <Text TextId="TOK_Output_DataItem_W64_40" Value="Word 40"/>
+               <Text TextId="TOK_Output_DataItem_W64_41" Value="Word 41"/>
+               <Text TextId="TOK_Output_DataItem_W64_42" Value="Word 42"/>
+               <Text TextId="TOK_Output_DataItem_W64_43" Value="Word 43"/>
+               <Text TextId="TOK_Output_DataItem_W64_44" Value="Word 44"/>
+               <Text TextId="TOK_Output_DataItem_W64_45" Value="Word 45"/>
+               <Text TextId="TOK_Output_DataItem_W64_46" Value="Word 46"/>
+               <Text TextId="TOK_Output_DataItem_W64_47" Value="Word 47"/>
+               <Text TextId="TOK_Output_DataItem_W64_48" Value="Word 48"/>
+               <Text TextId="TOK_Output_DataItem_W64_49" Value="Word 49"/>
+               <Text TextId="TOK_Output_DataItem_W64_50" Value="Word 50"/>
+               <Text TextId="TOK_Output_DataItem_W64_51" Value="Word 51"/>
+               <Text TextId="TOK_Output_DataItem_W64_52" Value="Word 52"/>
+               <Text TextId="TOK_Output_DataItem_W64_53" Value="Word 53"/>
+               <Text TextId="TOK_Output_DataItem_W64_54" Value="Word 54"/>
+               <Text TextId="TOK_Output_DataItem_W64_55" Value="Word 55"/>
+               <Text TextId="TOK_Output_DataItem_W64_56" Value="Word 56"/>
+               <Text TextId="TOK_Output_DataItem_W64_57" Value="Word 57"/>
+               <Text TextId="TOK_Output_DataItem_W64_58" Value="Word 58"/>
+               <Text TextId="TOK_Output_DataItem_W64_59" Value="Word 59"/>
+               <Text TextId="TOK_Output_DataItem_W64_60" Value="Word 60"/>
+               <Text TextId="TOK_Output_DataItem_W64_61" Value="Word 61"/>
+               <Text TextId="TOK_Output_DataItem_W64_62" Value="Word 62"/>
+               <Text TextId="TOK_Output_DataItem_W64_63" Value="Word 63"/>
+               <Text TextId="TOK_Output_DataItem_W64_64" Value="Word 64"/>
+               <!--ParameterRecordDataItem name-->
+               <Text TextId="TOK_parameter_datatypelist" Value="Data types"/>
+               <Text TextId="TOK_parameter_datatypelist_ref" Value="List of logged data types"/>
+            </PrimaryLanguage>
+         </ExternalTextList>
+      </ApplicationProcess>
+   </ProfileBody>
+</ISO15745Profile>
