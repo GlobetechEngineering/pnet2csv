@@ -100,13 +100,22 @@ static const app_gsdml_submodule_t dap_port_4 = {
    .outsize = 0,
    .parameters = {0}};
 
+static const app_gsdml_submodule_t submod_log_ts = {
+   .id = APP_GSDML_SUBMOD_ID_LOGTS,
+   .name = "Logger timestamp",
+   .api = APP_GSDML_API,
+   .data_dir = PNET_DIR_OUTPUT,
+   .insize = 0,
+   .outsize = APP_GSDML_TIMESTAMP_SIZE,
+   .parameters = {0}};
+
 static const app_gsdml_submodule_t submod_log_w64 = {
    .id = APP_GSDML_SUBMOD_ID_LOGW64,
    .name = "Logger W64",
    .api = APP_GSDML_API,
    .data_dir = PNET_DIR_OUTPUT,
    .insize = 0,
-   .outsize = APP_GSDML_OUTPUT_DATA_DIGITAL_SIZE,
+   .outsize = APP_GSDML_VAR64_DATA_DIGITAL_SIZE,
    .parameters = {APP_GSDML_PARAMETER_DATAYPELIST_IDX, 0}};
 
 /** List of supported modules */
@@ -124,6 +133,7 @@ static const app_gsdml_submodule_t * app_gsdml_submodules[] = {
    &dap_port_3,
    &dap_port_4,
 
+   &submod_log_ts,
    &submod_log_w64,
 };
 

@@ -77,16 +77,26 @@ Current list works for Raspberry Pi, Linksys usb/ethernet dongle and xmc sample 
          <ModuleList>
             <ModuleItem ID="IDM_30" ModuleIdentNumber="0x00000030">
                <ModuleInfo>
-                  <Name TextId="TOK_Name_Module_W64"/>
-                  <InfoText TextId="TOK_InfoText_Module_W64"/>
+                  <Name TextId="TOK_Name_Module_LoggerW64"/>
+                  <InfoText TextId="TOK_InfoText_Module_LoggerW64"/>
                   <HardwareRelease Value="1.0"/>
                   <SoftwareRelease Value="1.0"/>
                </ModuleInfo>
                <VirtualSubmoduleList>
-                  <VirtualSubmoduleItem ID="IDSM_130" SubmoduleIdentNumber="0x0130" MayIssueProcessAlarm="true">
+			      <VirtualSubmoduleItem ID="IDSM_130" SubmoduleIdentNumber="0x0130" FixedInSubslots="1" MayIssueProcessAlarm="true">
+					 <IOData>
+					    <Output Consistency="All items consistency">
+						   <DataItem DataType="TimeStamp" TextId="TOK_Output_DataItem_Timestamp"/>
+						</Output>
+				     </IOData>
+                     <ModuleInfo>
+                        <Name TextId="TOK_Name_Module_TS"/>
+                        <InfoText TextId="TOK_InfoText_Module_TS"/>
+                     </ModuleInfo>
+				  </VirtualSubmoduleItem>
+                  <VirtualSubmoduleItem ID="IDSM_131" SubmoduleIdentNumber="0x0131" FixedInSubslots="2" MayIssueProcessAlarm="true">
                      <IOData>
                         <Output Consistency="All items consistency">
-						   <DataItem DataType="TimeStamp"  TextId="TOK_Output_DataItem_Timestamp"/>
                            <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_1"/>
                            <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_2"/>
                            <DataItem DataType="Unsigned16" TextId="TOK_Output_DataItem_W64_3"/>
@@ -189,9 +199,13 @@ Current list works for Raspberry Pi, Linksys usb/ethernet dongle and xmc sample 
                <Text TextId="IDT_NAME_PS1" Value="X1 P1"/>
                <Text TextId="IDT_NAME_PS2" Value="X1 P2"/>
                <!--module name-->
-               <Text TextId="TOK_Name_Module_W64" Value="LogW64"/>
+               <Text TextId="TOK_Name_Module_LoggerW64" Value="LogW64"/>
+               <Text TextId="TOK_Name_Module_W64" Value="VarW64"/>
+               <Text TextId="TOK_Name_Module_TS" Value="LogTime"/>
                <!--module info -->
-               <Text TextId="TOK_InfoText_Module_W64" Value="Logger 64 words"/>
+               <Text TextId="TOK_InfoText_Module_LoggerW64" Value="Logger 64 words"/>
+               <Text TextId="TOK_InfoText_Module_W64" Value="Variable data 64 words"/>
+               <Text TextId="TOK_InfoText_Module_TS" Value="Logger timestamp"/>
                <!--dataitem name-->
                <Text TextId="TOK_Output_DataItem_Timestamp" Value="Timestamp"/>
                <Text TextId="TOK_Output_DataItem_W64_1" Value="Word 1"/>

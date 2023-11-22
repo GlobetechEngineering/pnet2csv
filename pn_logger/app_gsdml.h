@@ -137,9 +137,21 @@ typedef struct
 } app_gsdml_param_t;
 
 #define APP_GSDML_MOD_ID_LOGW64    0x00000030
-#define APP_GSDML_SUBMOD_ID_LOGW64      0x00000130
-#define APP_GSDML_INPUT_DATA_DIGITAL_SIZE  1 /* bytes */
-#define APP_GSDML_OUTPUT_DATA_DIGITAL_SIZE  136 /* bytes */
+#define APP_GSDML_SUBMOD_ID_LOGTS       0x00000130
+#define APP_GSDML_SUBMOD_ID_LOGW64      0x00000131
+#define APP_GSDML_VAR64_DATA_DIGITAL_SIZE  128 /* bytes */
+#define APP_GSDML_TIMESTAMP_SIZE  12 /* bytes */
+/*
+"DTL"
+.YEAR       2
+.MONTH      1
+.DAY        1
+.WEEKDAY    1
+.HOUR       1
+.MINUTE     1
+.SECOND     1
+.NANOSECOND 4
+*/
 #define APP_GSDML_ALARM_PAYLOAD_SIZE        1 /* bytes */
 
 /**

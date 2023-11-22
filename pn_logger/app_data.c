@@ -36,8 +36,8 @@
 
 /* Digital submodule process data
  * The stored value is shared between all digital submodules in this example. */
-//static uint8_t inputdata[APP_GSDML_INPUT_DATA_DIGITAL_SIZE] = {0};
-static uint8_t outputdata[APP_GSDML_OUTPUT_DATA_DIGITAL_SIZE] = {0};
+static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
+static uint8_t PLCtimestamp[APP_GSDML_TIMESTAMP_SIZE] = {0};
 
 /**
  * Set LED state.
@@ -164,7 +164,8 @@ int app_data_set_output_data (
 
 int app_data_set_default_outputs (void)
 {
-   outputdata[0] = APP_DATA_DEFAULT_OUTPUT_DATA;
+   variabledata[0] = APP_DATA_DEFAULT_OUTPUT_DATA;
+   PLCtimestamp[0] = APP_DATA_DEFAULT_OUTPUT_DATA;
    app_handle_data_led_state (false);
    return 0;
 }
