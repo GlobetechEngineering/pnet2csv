@@ -142,6 +142,22 @@ int app_data_set_output_data (
 		if(size == APP_GSDML_VAR64_DATA_DIGITAL_SIZE) {
 			memcpy(variabledata, data, size);
 			
+			/*
+			static uint8_t lastsecond = 0;
+			
+			if(PLCtimestamp.second != lastsecond) {
+				datatypelist[APP_GSDML_DATATYPELIST_LENGTH-1] = 0;
+				printf("typelist = %s\n", datatypelist);
+				
+				for(int i = 0; i < APP_GSDML_VAR64_DATA_DIGITAL_SIZE; i++) {
+					printf("%02x", variabledata[i]);
+				}
+				printf("\n");
+				
+				lastsecond = PLCtimestamp.second;
+			}
+			*/
+			
 			return 0;
 		}
 	}

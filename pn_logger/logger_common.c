@@ -997,7 +997,8 @@ static void app_cyclic_data_callback (app_subslot_t * subslot, void * tag)
    bool outdata_updated;
    uint16_t outdata_length;
    uint8_t outdata_iops;
-   uint8_t outdata_buf[20]; /* Todo: Remove temporary buffer */
+   uint8_t outdata_buf[130]; /* Todo: Remove temporary buffer */
+   /* TODO: made it bigger but did not fix the underlying problem :O */
 
    if (app == NULL)
    {
