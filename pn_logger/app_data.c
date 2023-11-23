@@ -37,9 +37,23 @@
 static uint8_t datatypelist[APP_GSDML_DATATYPELIST_LENGTH] = {0};
 
 /* Digital submodule process data
- * The stored value is shared between all digital submodules in this example. */
+ * The GSD dictates there's only one module, so it better be alright to use single variables */
 static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
-static uint8_t PLCtimestamp[APP_GSDML_TIMESTAMP_SIZE] = {0};
+//static uint8_t PLCtimestamp[APP_GSDML_TIMESTAMP_SIZE] = {0};
+
+typedef struct DTL_data
+{
+	uint16_t year;
+	uint8_t  month;
+	uint8_t  day;
+	uint8_t  weekday;
+	uint8_t  hour;
+	uint8_t  minute;
+	uint8_t  second;
+	uint32_t nanosecond;
+} DTL_data_t;
+
+static DTL_data_t PLCtimestamp = {0};
 
 /**
  * Set LED state.
@@ -92,7 +106,34 @@ int app_data_set_output_data (
    
     if (submodule_id == APP_GSDML_SUBMOD_ID_LOGTS) {
 		if(size == APP_GSDML_TIMESTAMP_SIZE) {
-			memcpy(PLCtimestamp, data, size);
+			memcpy(&PLCtimestamp.year,       data,   2);
+			memcpy(&PLCtimestamp.month,      data+2, 1);
+			memcpy(&PLCtimestamp.day,        data+3, 1);
+			memcpy(&PLCtimestamp.weekday,    data+4, 1);
+			memcpy(&PLCtimestamp.hour,       data+5, 1);
+			memcpy(&PLCtimestamp.minute,     data+6, 1);
+			memcpy(&PLCtimestamp.second,     data+7, 1);
+			memcpy(&PLCtimestamp.nanosecond, data+8, 4);
+			
+			// convert from network endian
+			PLCtimestamp.year = CC_FROM_BE16(PLCtimestamp.year);
+			PLCtimestamp.nanosecond = CC_FROM_BE32(PLCtimestamp.nanosecond);
+	
+			/*
+			static uint8_t lastsecond = 0;
+			if(PLCtimestamp.second != lastsecond) {
+				APP_LOG_DEBUG("%04d-%02d-%02d %02d:%02d:%02d.%09d\n",
+					PLCtimestamp.year,
+					PLCtimestamp.month,
+					PLCtimestamp.day,
+					PLCtimestamp.hour,
+					PLCtimestamp.minute,
+					PLCtimestamp.second,
+					PLCtimestamp.nanosecond
+				);
+				lastsecond = PLCtimestamp.second;
+			}
+			*/
 			
 			return 0;
 		}
@@ -111,7 +152,6 @@ int app_data_set_output_data (
 int app_data_set_default_outputs (void)
 {
    variabledata[0] = APP_DATA_DEFAULT_OUTPUT_DATA;
-   PLCtimestamp[0] = APP_DATA_DEFAULT_OUTPUT_DATA;
    app_handle_data_led_state (false);
    return 0;
 }
