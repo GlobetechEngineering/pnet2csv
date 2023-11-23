@@ -35,11 +35,7 @@
  */
  
 static uint8_t datatypelist[APP_GSDML_DATATYPELIST_LENGTH] = {0};
-
-/* Digital submodule process data
- * The GSD dictates there's only one module, so it better be alright to use single variables */
-static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
-//static uint8_t PLCtimestamp[APP_GSDML_TIMESTAMP_SIZE] = {0};
+static uint8_t installationid[APP_GSDML_INSTALLATIONID_LENGTH] = {0};
 
 typedef struct DTL_data
 {
@@ -53,6 +49,9 @@ typedef struct DTL_data
 	uint32_t nanosecond;
 } DTL_data_t;
 
+/* Digital submodule process data
+ * The GSD dictates there's only one module, so it better be alright to use single variables */
+static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
 static DTL_data_t PLCtimestamp = {0};
 
 /**
@@ -146,8 +145,8 @@ int app_data_set_output_data (
 			static uint8_t lastsecond = 0;
 			
 			if(PLCtimestamp.second != lastsecond) {
-				datatypelist[APP_GSDML_DATATYPELIST_LENGTH-1] = 0;
-				printf("typelist = %s\n", datatypelist);
+				printf("typelist = %64s\n", datatypelist);
+				printf("ID = %8s\n", installationid);
 				
 				for(int i = 0; i < APP_GSDML_VAR64_DATA_DIGITAL_SIZE; i++) {
 					printf("%02x", variabledata[i]);
@@ -207,6 +206,9 @@ int app_data_write_parameter (
     if(index == APP_GSDML_PARAMETER_DATATYPELIST_IDX) {
 	    memcpy(&datatypelist, data, length);
     }
+	else if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
+	    memcpy(&installationid, data, length);
+    }
 	
    APP_LOG_DEBUG ("  Writing parameter \"%s\"\n", par_cfg->name);
    app_log_print_bytes (APP_LOG_LEVEL_DEBUG, data, length);
@@ -251,6 +253,10 @@ int app_data_read_parameter (
     if(index == APP_GSDML_PARAMETER_DATATYPELIST_IDX) {
 		*data = (uint8_t *) &datatypelist;
 		*length = sizeof (datatypelist);
+	}
+	else if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
+		*data = (uint8_t *) &installationid;
+		*length = sizeof (installationid);
 	}
    
    app_log_print_bytes (APP_LOG_LEVEL_DEBUG, *data, *length);

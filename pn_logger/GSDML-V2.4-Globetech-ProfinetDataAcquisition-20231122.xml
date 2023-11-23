@@ -164,7 +164,11 @@ Current list works for Raspberry Pi, Linksys usb/ethernet dongle and xmc sample 
                         </Output>
                      </IOData>
 					 <RecordDataList>
-						<ParameterRecordDataItem Index="123" Length="64">
+						<ParameterRecordDataItem Index="123" Length="8">
+							<Name TextId="TOK_parameter_installationid"/>
+							<Ref DataType="VisibleString" Length="8" ByteOffset="0" DefaultValue="" Changeable="true" Visible="true" TextId="TOK_parameter_installationid_ref"/>
+						</ParameterRecordDataItem>
+						<ParameterRecordDataItem Index="124" Length="64">
 							<Name TextId="TOK_parameter_datatypelist"/>
 							<Ref DataType="VisibleString" Length="64" ByteOffset="0" DefaultValue="" Changeable="true" Visible="true" TextId="TOK_parameter_datatypelist_ref"/>
 						</ParameterRecordDataItem>
@@ -273,6 +277,8 @@ Current list works for Raspberry Pi, Linksys usb/ethernet dongle and xmc sample 
                <Text TextId="TOK_Output_DataItem_W64_63" Value="Word 63"/>
                <Text TextId="TOK_Output_DataItem_W64_64" Value="Word 64"/>
                <!--ParameterRecordDataItem name-->
+               <Text TextId="TOK_parameter_installationid" Value="Installation"/>
+               <Text TextId="TOK_parameter_installationid_ref" Value="Installation identifier"/>
                <Text TextId="TOK_parameter_datatypelist" Value="Data types"/>
                <Text TextId="TOK_parameter_datatypelist_ref" Value="List of logged data types"/>
             </PrimaryLanguage>
