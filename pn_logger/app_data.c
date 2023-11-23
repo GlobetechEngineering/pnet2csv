@@ -54,26 +54,6 @@ typedef struct DTL_data
 static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
 static DTL_data_t PLCtimestamp = {0};
 
-/**
- * Set LED state.
- *
- * Compares new state with previous state, to minimize system calls.
- *
- * Uses the hardware specific app_set_led() function.
- *
- * @param led_state        In:    New LED state
- */
-static void app_handle_data_led_state (bool led_state)
-{
-   static bool previous_led_state = false;
-
-   if (led_state != previous_led_state)
-   {
-      app_set_led (APP_DATA_LED_ID, led_state);
-   }
-   previous_led_state = led_state;
-}
-
 uint8_t * app_data_get_input_data (
    uint16_t slot_nbr,
    uint16_t subslot_nbr,
@@ -167,7 +147,6 @@ int app_data_set_output_data (
 int app_data_set_default_outputs (void)
 {
    variabledata[0] = APP_DATA_DEFAULT_OUTPUT_DATA;
-   app_handle_data_led_state (false);
    return 0;
 }
 
