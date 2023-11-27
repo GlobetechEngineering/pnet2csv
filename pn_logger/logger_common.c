@@ -18,6 +18,7 @@
 #include "app_utils.h"
 #include "app_gsdml.h"
 #include "app_data.h"
+#include "app_filelogger.h"
 #include "app_log.h"
 #include "osal.h"
 #include "pnal.h"
@@ -1219,6 +1220,13 @@ static void app_handle_cyclic_data (app_data_t * app)
    app->process_data_tick_counter = 0;
 
    app_utils_cyclic_data_poll (&app->main_api);
+   
+   DTL_data_t PLCtimestamp;
+   uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE];
+   
+   app_read_log_data(&PLCtimestamp, variabledata);
+   
+   addLogEntry(&PLCtimestamp, variabledata, 64);
 }
 
 /**

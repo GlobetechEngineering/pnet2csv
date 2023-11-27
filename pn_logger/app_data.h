@@ -36,6 +36,20 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "app_gsdml.h"
+
+typedef struct DTL_data
+{
+	uint16_t year;
+	uint8_t  month;
+	uint8_t  day;
+	uint8_t  weekday;
+	uint8_t  hour;
+	uint8_t  minute;
+	uint8_t  second;
+	uint32_t nanosecond;
+} DTL_data_t;
+
 /**
  * Get application specific PNIO input data (for sending to PLC)
  *
@@ -132,6 +146,27 @@ int app_data_read_parameter (
    uint32_t index,
    uint8_t ** data,
    uint16_t * length);
+
+/**
+ * Read out parameter data
+ *
+ * @param parm_installid   Out
+ * @param parm_dtypelist   Out
+ * @return 0 on success, -1 on error
+ */
+int app_read_log_parameters (
+	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH],
+	uint8_t parm_dtypelist[APP_GSDML_DATATYPELIST_LENGTH]);
+
+/**
+ * Read out log data
+ *
+ * @param data_timestamp   Out
+ * @param data_variables   Out
+ */
+int app_read_log_data(
+	DTL_data_t *data_timestamp,
+	uint8_t data_variables[APP_GSDML_VAR64_DATA_DIGITAL_SIZE]);
 
 #ifdef __cplusplus
 }

@@ -76,6 +76,7 @@ target_sources(pn_dev
   pn_logger/app_log.c
   pn_logger/app_gsdml.c
   pn_logger/app_data.c
+  src/ports/linux/app_filelogger.c
   src/ports/linux/logger_main.c
   )
 

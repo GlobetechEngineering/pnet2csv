@@ -37,18 +37,6 @@
 static uint8_t datatypelist[APP_GSDML_DATATYPELIST_LENGTH] = {0};
 static uint8_t installationid[APP_GSDML_INSTALLATIONID_LENGTH] = {0};
 
-typedef struct DTL_data
-{
-	uint16_t year;
-	uint8_t  month;
-	uint8_t  day;
-	uint8_t  weekday;
-	uint8_t  hour;
-	uint8_t  minute;
-	uint8_t  second;
-	uint32_t nanosecond;
-} DTL_data_t;
-
 /* Digital submodule process data
  * The GSD dictates there's only one module, so it better be alright to use single variables */
 static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
@@ -241,4 +229,25 @@ int app_data_read_parameter (
    app_log_print_bytes (APP_LOG_LEVEL_DEBUG, *data, *length);
 
    return 0;
+}
+
+int app_read_log_parameters (
+	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH],
+	uint8_t parm_dtypelist[APP_GSDML_DATATYPELIST_LENGTH])
+{
+	/* Make a copy */
+	memcpy(parm_installid, installationid, APP_GSDML_INSTALLATIONID_LENGTH);
+	memcpy(parm_dtypelist, datatypelist, APP_GSDML_DATATYPELIST_LENGTH);
+	
+	return 0;
+}
+
+int app_read_log_data(
+	DTL_data_t *data_timestamp,
+	uint8_t data_variables[APP_GSDML_VAR64_DATA_DIGITAL_SIZE])
+{
+	*data_timestamp = PLCtimestamp;
+	memcpy(data_variables, variabledata, APP_GSDML_VAR64_DATA_DIGITAL_SIZE);
+	
+	return 0;
 }
