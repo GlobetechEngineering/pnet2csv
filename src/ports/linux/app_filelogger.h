@@ -14,18 +14,36 @@ extern "C" {
 
 #include "app_data.h"
 #include "app_gsdml.h"
+#include "osal.h"
+
+#define ENTRY_SIZE (12 + 2*64)
+#define ENTRY_BUFFER_SIZE (32*ENTRY_SIZE)
+
+/* (circular) buffer for passing entries between threads */
+typedef struct entry_buffer
+{
+	size_t start;
+	size_t end;
+	uint8_t buffer[ENTRY_BUFFER_SIZE];
+} entry_buffer_t;
+
+#define FILE_WRITE_SIZE 4096
+#define FILE_BUFFER_SIZE 32768
 
 typedef struct log_file
 {
 	int fd;
+	uint8_t buffer[FILE_BUFFER_SIZE];
+	size_t buf_end;
 	
 	bool bigendian;
 	uint8_t log_id[APP_GSDML_INSTALLATIONID_LENGTH];
 	uint8_t type_list[APP_GSDML_DATATYPELIST_LENGTH];
 	/* first, last timestamp ? */
-	
-	int lines;
 } log_file_t;
+
+#define LOG_THREAD_PRIORITY  10
+#define LOG_THREAD_STACKSIZE 65536 /* bytes */
 
 /**
  * Add a new entry to be logged.
@@ -41,13 +59,35 @@ int addLogEntry(
 	uint8_t word_count);
 
 /**
- * Start a new log, writing the header
+ * Start a separate thread for logging I/O
+ *
+ * @param entries          In:    buffer that entries and mutex will exist in
+ * @return 0 on success, -1 on error
+ */
+int initialiseLoggerThread(entry_buffer_t *entries);
+
+/**
+ * Main function for the logging thread
+ *
+ * @param arg              In     buffer that entries and mutex will exist in
+ */
+void log_thread_main(void * arg);
+
+/**
+ * Compare timestamps for whether they should belong to the same log
+ *
+ * @param ts_1             In     First timestamp
+ * @param ts_2             In     Second timestamp
+ */
+bool DTLs_for_same_log(DTL_data_t *ts_1, DTL_data_t *ts_2);
+
+/**
+ * Start a new log in storage, assigning fd and flushing headers
  *
  * @param log_file         Out:   the new log
  * @return 0 on success, -1 on error
  */
-int startLogFile(
-	log_file_t *log_file);
+int startLogFile(log_file_t *log_file, DTL_data_t *timeframe);
 	
 int writeLogHeader(log_file_t *log_file);
 
