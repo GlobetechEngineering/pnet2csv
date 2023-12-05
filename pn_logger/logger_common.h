@@ -30,14 +30,14 @@ extern "C" {
  * event loop is run in a separate thread (not main).
  * This applies for linux sample app implementation.
  */
-#define APP_MAIN_THREAD_PRIORITY  15
+#define APP_MAIN_THREAD_PRIORITY  10
 #define APP_MAIN_THREAD_STACKSIZE 4096 /* bytes */
 
 #define APP_DATA_LED_ID            1
 #define APP_PROFINET_SIGNAL_LED_ID 2
 
 #define APP_TICKS_READ_BUTTONS 10
-#define APP_TICKS_UPDATE_DATA  100
+#define APP_TICKS_UPDATE_DATA  1
 
 /** HW Offload configuration. */
 typedef enum

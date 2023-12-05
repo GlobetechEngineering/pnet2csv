@@ -1029,16 +1029,21 @@ static void app_cyclic_data_callback (app_subslot_t * subslot, void * tag)
          subslot->outdata_iops,
          outdata_iops);
       subslot->outdata_iops = outdata_iops;
+	  
+	  static bool defaults_set = false;
 
       if (outdata_length != subslot->data_cfg.outsize)
       {
          APP_LOG_ERROR ("Wrong outputdata length: %u\n", outdata_length);
-         app_set_outputs_default_value();
+		 if( !defaults_set) {
+			 app_set_outputs_default_value();
+			 defaults_set = true;
+		 }
       }
       else if (outdata_iops == PNET_IOXS_GOOD)
       {
-         /* Application specific handling of the output data to a submodule.
-            For the sample application, the data sets a LED. */
+         /* Application specific handling of the output data to a submodule. */
+		 defaults_set = false;
          (void)app_data_set_output_data (
             subslot->slot_nbr,
             subslot->subslot_nbr,
@@ -1048,7 +1053,10 @@ static void app_cyclic_data_callback (app_subslot_t * subslot, void * tag)
       }
       else
       {
-         app_set_outputs_default_value();
+		  if( !defaults_set) {
+			app_set_outputs_default_value();
+			defaults_set = true;
+		  }
       }
    }
 
@@ -1226,7 +1234,45 @@ static void app_handle_cyclic_data (app_data_t * app)
    
    app_read_log_data(&PLCtimestamp, variabledata);
    
-   addLogEntry(&PLCtimestamp, variabledata, 64);
+   /*
+   Probably a better way to check that there is real data,
+   which wouldn't require reading this at all
+   */
+   if(PLCtimestamp.year == 0) {
+	   return;
+   }
+   
+   static DTL_data_t last_ts = {0};
+   static uint8_t  last_data[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
+   static bool logged_last = false;
+   
+   if(PLCtimestamp.nanosecond == last_ts.nanosecond) {
+	   /* reasonable to assume we haven't gone an entire second+
+	   without data then just happened upon the same nanosecond...
+	   This is not new data. */
+	   return;
+   }
+   
+   bool data_changed = false;
+   for(int i = 0; i < APP_GSDML_VAR64_DATA_DIGITAL_SIZE; i++) {
+	   if( variabledata[i] != last_data[i] ) {
+		   data_changed = true;
+		   break;
+	   }
+   }
+   
+	if(data_changed) {
+		if( ! logged_last )
+			addLogEntry(&last_ts, last_data, 64);
+		addLogEntry(&PLCtimestamp, variabledata, 64);
+		
+		logged_last = true;
+		last_ts = PLCtimestamp;
+		memcpy(last_data, variabledata, APP_GSDML_VAR64_DATA_DIGITAL_SIZE);
+	}
+	else {
+		logged_last = false;
+	}
 }
 
 /**

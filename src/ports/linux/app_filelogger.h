@@ -17,7 +17,7 @@ extern "C" {
 #include "osal.h"
 
 #define ENTRY_SIZE (12 + 2*64)
-#define ENTRY_BUFFER_SIZE (32*ENTRY_SIZE)
+#define ENTRY_BUFFER_SIZE (128*ENTRY_SIZE)
 
 /* (circular) buffer for passing entries between threads */
 typedef struct entry_buffer
@@ -42,7 +42,7 @@ typedef struct log_file
 	/* first, last timestamp ? */
 } log_file_t;
 
-#define LOG_THREAD_PRIORITY  10
+#define LOG_THREAD_PRIORITY  12
 #define LOG_THREAD_STACKSIZE 65536 /* bytes */
 
 /**
@@ -100,6 +100,14 @@ int writeLogHeader(log_file_t *log_file);
 int finishLogFile(
 	log_file_t *log_file,
 	bool flush);
+
+/**
+ * Compress a day of logs, send it elsewhere, etc.
+ * @param timeframe        In:     The day that was finished
+ */
+int finishLogGroup(DTL_data_t *timeframe);
+
+void archive_thread_main(void *arg);
 
 #ifdef __cplusplus
 }

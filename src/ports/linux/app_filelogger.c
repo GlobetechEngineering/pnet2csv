@@ -19,11 +19,12 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <errno.h>
 
-#include <time.h>
-
 static os_mutex_t *mutex;
+static os_sem_t *finishDataSemaphore;
 static entry_buffer_t entries;
 static bool bigendian = true;
 
@@ -49,6 +50,11 @@ int addLogEntry(
 		nano = CC_TO_LE32(timestamp->nanosecond);
 	}
 	
+	if(timestamp->year == 0) {
+		APP_LOG_WARNING("Entry looks uninitialised (var1=%x%x), ignoring\n", word_data[0], word_data[1]);
+		return -1;
+	}
+	
 	/*
 	OSAL does not wrap pthread_mutex_timedlock
 	This is running on the important thread so we'd like to fail fairly quickly
@@ -57,6 +63,9 @@ int addLogEntry(
 	*/
 	os_mutex_lock(mutex);
 	
+	static unsigned int drop_count = 0;
+	static unsigned int next_logged_drop = 1;
+	
 	if((entries.end + ENTRY_SIZE)%ENTRY_BUFFER_SIZE == entries.start) {
 		/*
 		"no more" room
@@ -64,8 +73,19 @@ int addLogEntry(
 		but will make the buffer look empty (start = end)
 		*/
 		os_mutex_unlock(mutex);
-		APP_LOG_WARNING("Log buffer full - dropping entries!\n");
+		++drop_count;
+		if(drop_count >= next_logged_drop) {
+			APP_LOG_WARNING("Data buffer full - dropped %u entries!\n", drop_count);
+			next_logged_drop *= 2;
+		}
 		return -1;
+	}
+	
+	if(drop_count != 0) {
+		APP_LOG_WARNING("[%2d:%2d] Recovered after \e[31m%u\e[0m dropped.\n", timestamp->hour, timestamp->minute, drop_count);
+	
+		drop_count = 0;
+		next_logged_drop = 1;
 	}
 	
 	size_t end = entries.end;
@@ -146,17 +166,36 @@ void log_thread_main(void * arg)
 				/* release the lock, so we can do IO in peace */
 				os_mutex_unlock(mutex);
 				
-				if(current_log.fd >= 0)
+				if(current_log.fd >= 0) {
 					finishLogFile(&current_log, true);
+					
+					if(    entry_ts.day   != curr_log_start.day
+						|| entry_ts.month != curr_log_start.month
+						|| entry_ts.year  != curr_log_start.year
+					) {
+						finishLogGroup(&curr_log_start);
+					}
+				}
 				
 				curr_log_start = entry_ts;
-				startLogFile(&current_log, &curr_log_start);
+				int ret = startLogFile(&current_log, &curr_log_start);
+				while(ret == -1) {
+					APP_LOG_INFO("\nretrying... ");
+					os_usleep(500);
+					ret = startLogFile(&current_log, &curr_log_start);
+				}
+				APP_LOG_INFO("fd=%d\n", current_log.fd);
 				
 				/* ready to process again */
 				os_mutex_lock(mutex);
 			}
 			
-			if(current_log.buf_end + (ENTRY_SIZE + 1) > FILE_BUFFER_SIZE) {
+			if(current_log.fd == -1) {
+				APP_LOG_ERROR("No file?\n");
+				break;
+			}
+			
+			if(current_log.buf_end + (ENTRY_SIZE + 1) >= FILE_BUFFER_SIZE) {
 				/* oh no! */
 				APP_LOG_WARNING("File buffer running low (%d/%d)\n", current_log.buf_end, FILE_BUFFER_SIZE);
 				break;
@@ -171,28 +210,29 @@ void log_thread_main(void * arg)
 		os_mutex_unlock(mutex);
 		
 		/* write log if buffer is long enough */
-		
-		while(current_log.buf_end >= FILE_WRITE_SIZE) {
-			size_t written = write(current_log.fd, current_log.buffer, FILE_WRITE_SIZE);
-			
-			memmove(current_log.buffer, current_log.buffer+written, current_log.buf_end - written);
-			
-			current_log.buf_end -= written;
+		if(current_log.fd != -1) {
+			while(current_log.buf_end >= FILE_WRITE_SIZE) {
+				size_t written = write(current_log.fd, current_log.buffer, FILE_WRITE_SIZE);
+				
+				memmove(current_log.buffer, current_log.buffer+written, current_log.buf_end - written);
+				
+				current_log.buf_end -= written;
+			}
 		}
 		
 		/* wait on something */
 		
-		os_usleep(5000);
+		os_usleep(2000);
 	}
 }
 
 bool DTLs_for_same_log(DTL_data_t *ts_1, DTL_data_t *ts_2)
 {
-	if(    ts_1->year == ts_2->year
-		&& ts_1->month == ts_2->month
-		&& ts_1->day == ts_2->day
+	if(    ts_1->minute/10 == ts_2->minute/10
 		&& ts_1->hour == ts_2->hour
-		&& ts_1->minute/10 == ts_2->minute/10
+		&& ts_1->day == ts_2->day
+		&& ts_1->month == ts_2->month
+		&& ts_1->year == ts_2->year
 	) {
 		return true;
 	}
@@ -207,46 +247,56 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 	log_file->buf_end = 0;
 	app_read_log_parameters(log_file->log_id, log_file->type_list);
 	
-	char fname[32];
-	sprintf(fname, "%4d%02d%02d_%02d%02d.bin",
-		timeframe->year, timeframe->month, timeframe->day,
+	char date[16];
+	sprintf(date, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
+	
+	int ret = mkdir(date, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+	if(ret == -1 && errno != EEXIST) {
+		return -1;
+	}
+	
+	/* O_PATH undefined ? */
+	int dirfd = open(date, O_DIRECTORY | O_CLOEXEC);
+	if(dirfd == -1) {
+		return -1;
+	}
+	
+	char fname[16];
+	sprintf(fname, "%02d-%02d.bin",
 		timeframe->hour, 10*(timeframe->minute/10)
 	);
 	
-	int fd = open(
-		fname,
+	int fd = openat(
+		dirfd, fname,
 		O_WRONLY | O_APPEND | O_CREAT | O_EXCL,
 		S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH /* owner RW, others R */
 	);
 	
 	for(int i=2; fd < 0 && errno == EEXIST && i<=9; i++) {
-		fname[13] = '_';
-		fname[14] = i + '0';
-		fname[15] = '.';
-		fname[16] = 'b';
-		fname[17] = 'i';
-		fname[18] = 'n';
-		fname[19] = 0;
+		sprintf(fname, "%02d-%02d_%d.bin",
+			timeframe->hour, 10*(timeframe->minute/10), i
+		);
 		
-		fd = open(
-			fname,
+		fd = openat(
+			dirfd, fname,
 			O_WRONLY | O_APPEND | O_CREAT | O_EXCL,
 			S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH /* owner RW, others R */
 		);
 	}
 	
+	ret = close(dirfd);
+	
 	if(fd < 0) {
-		/* didn't work :( */
-		/* try harder, or just */
+		APP_LOG_WARNING("Opened %s but failed to close\n", date);
 		return -1;
 	}
 	
-	APP_LOG_INFO("Starting %s\n", fname);
+	APP_LOG_INFO("Starting %s/%s... ", date, fname);
 	
 	log_file->fd = fd;
 	log_file->bigendian = true;
 	
-	int ret = writeLogHeader(log_file);
+	ret = writeLogHeader(log_file);
 	if(ret == -1) {
 		return -1;
 	}
@@ -319,13 +369,23 @@ int writeLogHeader(log_file_t *log_file) {
 
 int finishLogFile(log_file_t *log_file, bool flush)
 {
+	while(log_file->buf_end >= FILE_BUFFER_SIZE) {
+		/* make sure there's room for one more byte! */
+		size_t written = write(log_file->fd, log_file->buffer, FILE_WRITE_SIZE);
+		
+		memmove(log_file->buffer, log_file->buffer+written, log_file->buf_end - written);
+		
+		log_file->buf_end -= written;
+	}
+	
 	log_file->buffer[log_file->buf_end] = 255;
 	log_file->buf_end += 1;
 	
-	size_t written = write(log_file->fd, log_file->buffer, log_file->buf_end);
-	if(written < log_file->buf_end) {
-		/* incredible */
-		return -1;
+	/* finish it off */
+	size_t start = 0;
+	while(start < log_file->buf_end) {
+		size_t written = write(log_file->fd, log_file->buffer + start, log_file->buf_end - start);
+		start += written;
 	}
 	
 	if(flush) {
@@ -340,5 +400,104 @@ int finishLogFile(log_file_t *log_file, bool flush)
 		return -1;
 	}
 	
+	APP_LOG_INFO("Saved successfully.\n");
+	
+	log_file->fd = -1;
+	
 	return 0;
+}
+
+int finishLogGroup(DTL_data_t *timeframe)
+{
+	finishDataSemaphore = os_sem_create(0);
+	
+	os_thread_create(
+		"log_archive_thread",
+		LOG_THREAD_PRIORITY+10,
+		4096,
+		archive_thread_main,
+		(void *) timeframe
+	);
+	
+	/* make sure it knows what to work on before returning and timeframe is potentially altered */
+	APP_LOG_DEBUG("Waiting on semaphore\n");
+	os_sem_wait(finishDataSemaphore, OS_WAIT_FOREVER);
+	
+	os_sem_destroy(finishDataSemaphore);
+	APP_LOG_DEBUG("Semaphore destroyed\n");
+	
+	return 0;
+}
+
+void archive_thread_main(void *arg)
+{
+	DTL_data_t *timeframe = (DTL_data_t *) arg;
+	
+	char directory[16], archive[24];
+	sprintf(directory, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
+	sprintf(archive, "%s.tgz", directory);
+	
+	/* got the data, let the logging thread continue */
+	os_sem_signal(finishDataSemaphore);
+	
+	APP_LOG_INFO("Zipping %s as %s\n", directory, archive);
+	
+	pid_t child_pid;
+	int status;
+	
+	child_pid = fork();
+	if(child_pid == 0) {
+		/* this is the child */
+		
+		/* be very adamant that this is a low priority */
+		nice(10);
+		
+		char *argv[] = { "tar", "-czf", archive, directory, NULL };
+		
+		/* p searches so we don't have to */
+		execvp("tar", argv);
+		
+		/* exec didn't replace us... don't want this process hanging around */
+		/* Goodbye, world! */
+		exit(EXIT_FAILURE);
+	}
+	else if(child_pid == -1) {
+		return;
+	}
+	
+	waitpid(child_pid, &status, 0);
+	
+	APP_LOG_INFO("Tar finished\n");
+	
+	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		/* os_thread_create doesn't want us to return a value */
+		return;
+	}
+	
+	/* deleting a folder of files is a nuisance... just use rm */
+	child_pid = fork();
+	if(child_pid == 0) {
+		/* this is the child */
+		
+		char *argv[] = { "rm", "-rf", directory, NULL };
+		
+		/* p searches so we don't have to */
+		execvp("rm", argv);
+		
+		/* exec didn't replace us... don't want this process hanging around */
+		/* Goodbye, world! */
+		exit(EXIT_FAILURE);
+	}
+	else if(child_pid == -1) {
+		return;
+	}
+	
+	waitpid(child_pid, &status, 0);
+	
+	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		APP_LOG_WARNING("\e[31mFailed to delete %s\e[0m\n", directory);
+		return;
+	}
+	
+	APP_LOG_INFO("Deleted %s\n", directory);
 }
