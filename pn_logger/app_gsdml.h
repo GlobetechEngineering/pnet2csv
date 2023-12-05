@@ -66,10 +66,10 @@ extern "C" {
 #define APP_GSDML_EXAMPLE_SERIAL_NUMBER "007"
 
 /* Initial values. Can be overwritten by PLC */
-#define APP_GSDML_TAG_FUNCTION "my function"
-#define APP_GSDML_TAG_LOCATION "my location"
-#define APP_GSDML_IM_DATE      "2022-03-01 10:03"
-#define APP_GSDML_DESCRIPTOR   "my descriptor"
+#define APP_GSDML_TAG_FUNCTION "PLC state logger"
+#define APP_GSDML_TAG_LOCATION "RPi"
+#define APP_GSDML_IM_DATE      "2023-12-01"
+#define APP_GSDML_DESCRIPTOR   "Logs variables and status for diagnosis"
 #define APP_GSDML_SIGNATURE    ""
 
 /* GSDML tag: Writeable_IM_Records */
