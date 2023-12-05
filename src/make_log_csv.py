@@ -111,7 +111,7 @@ try:
                         EOF = True # this doesn't actually do anything
                         break
                     case b'':
-                        print(f"Warning: {in_name} is missing entries", file=sys.stderr)
+                        print(f"Warning: {in_name} is incomplete", file=sys.stderr)
                         break
                     case _:
                         die(f"Unexpected byte at {in_file.tell()-1}")
