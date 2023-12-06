@@ -16,8 +16,8 @@ extern "C" {
 #include "app_gsdml.h"
 #include "osal.h"
 
-#define ENTRY_SIZE (12 + 2*64)
-#define ENTRY_BUFFER_SIZE (128*ENTRY_SIZE)
+#define ENTRY_SIZE (12 + APP_GSDML_VAR64_DATA_DIGITAL_SIZE)
+#define ENTRY_BUFFER_SIZE (256*ENTRY_SIZE)
 
 /* (circular) buffer for passing entries between threads */
 typedef struct entry_buffer
@@ -27,7 +27,7 @@ typedef struct entry_buffer
 	uint8_t buffer[ENTRY_BUFFER_SIZE];
 } entry_buffer_t;
 
-#define FILE_WRITE_SIZE 4096
+#define FILE_MIN_WRITE   4096
 #define FILE_BUFFER_SIZE 32768
 
 typedef struct log_file

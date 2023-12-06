@@ -196,10 +196,12 @@ void log_thread_main(void * arg)
 			}
 			
 			if(current_log.buf_end + (ENTRY_SIZE + 1) >= FILE_BUFFER_SIZE) {
-				/* oh no! */
+				/* Not losing anything yet, but the buffer needs something cleared before copying any more */
 				APP_LOG_WARNING("File buffer running low (%d/%d)\n", current_log.buf_end, FILE_BUFFER_SIZE);
 				break;
 			}
+			
+			/* file format includes 0 before each entry */
 			current_log.buffer[current_log.buf_end] = 0;
 			memcpy(current_log.buffer +current_log.buf_end+1, entry, ENTRY_SIZE);
 			current_log.buf_end += (ENTRY_SIZE + 1);
@@ -211,13 +213,19 @@ void log_thread_main(void * arg)
 		
 		/* write log if buffer is long enough */
 		if(current_log.fd != -1) {
-			while(current_log.buf_end >= FILE_WRITE_SIZE) {
-				size_t written = write(current_log.fd, current_log.buffer, FILE_WRITE_SIZE);
-				
-				memmove(current_log.buffer, current_log.buffer+written, current_log.buf_end - written);
-				
-				current_log.buf_end -= written;
+			size_t start = 0;
+			
+			while(current_log.buf_end - start >= FILE_MIN_WRITE) {
+				ssize_t written = write(current_log.fd, current_log.buffer + start, current_log.buf_end - start);
+				if(written == -1) {
+					continue;
+				}
+				start += written;
 			}
+				
+			memmove(current_log.buffer, current_log.buffer + start, current_log.buf_end - start);
+			
+			current_log.buf_end -= start;
 		}
 		
 		/* wait on something */
@@ -304,10 +312,10 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 	return 0;
 }
 
-int writeLogHeader(log_file_t *log_file) {
-	/* todo...probably write this straight into the buffer
-	*/
-	uint8_t header[81];
+int writeLogHeader(log_file_t *log_file)
+{
+	unsigned int header_size = 4+3+1+APP_GSDML_INSTALLATIONID_LENGTH+1+APP_GSDML_DATATYPELIST_LENGTH;
+	uint8_t header[header_size];
 	
 	/* Assert the format of the file */
 	header[0] = 0x61;
@@ -337,23 +345,25 @@ int writeLogHeader(log_file_t *log_file) {
 	/* digital size is bytes and words are 2
 	   could use datatypelist length instead ...
 	*/
-	header[16] = APP_GSDML_VAR64_DATA_DIGITAL_SIZE/2;
+	header[8+APP_GSDML_INSTALLATIONID_LENGTH] = APP_GSDML_VAR64_DATA_DIGITAL_SIZE/2;
 	
 	/* data types */
-	memcpy(header+17, log_file->type_list, APP_GSDML_DATATYPELIST_LENGTH);
+	memcpy(header+9+APP_GSDML_INSTALLATIONID_LENGTH, log_file->type_list, APP_GSDML_DATATYPELIST_LENGTH);
 	
 	/* all done, write it */
-	size_t written = write(log_file->fd, header, sizeof(header));
+	ssize_t written = write(log_file->fd, header, header_size);
+	if(written == -1) {
+		written = 0;
+	}
 	
-	if(written < sizeof(header)) {
+	if(written < header_size) {
 		APP_LOG_WARNING(
-			"Header: wrote %d/%d bytes\n",
-			written, sizeof(header)
+			"Header incomplete; wrote %d/%d bytes\n",
+			written, header_size
 		);
 		
 		/* keep the rest for later */
-		size_t remnant = sizeof(header) - written;
-		/* there shouldn't be anything in the buffer, but is it wise to assert that? */
+		size_t remnant = header_size - written;
 		memcpy(log_file->buffer, header, remnant);
 		log_file->buf_end = remnant;
 	}
@@ -371,7 +381,10 @@ int finishLogFile(log_file_t *log_file, bool flush)
 {
 	while(log_file->buf_end >= FILE_BUFFER_SIZE) {
 		/* make sure there's room for one more byte! */
-		size_t written = write(log_file->fd, log_file->buffer, FILE_WRITE_SIZE);
+		ssize_t written = write(log_file->fd, log_file->buffer, FILE_MIN_WRITE);
+		if(written == -1) {
+			continue;
+		}
 		
 		memmove(log_file->buffer, log_file->buffer+written, log_file->buf_end - written);
 		
@@ -384,10 +397,14 @@ int finishLogFile(log_file_t *log_file, bool flush)
 	/* finish it off */
 	size_t start = 0;
 	while(start < log_file->buf_end) {
-		size_t written = write(log_file->fd, log_file->buffer + start, log_file->buf_end - start);
+		ssize_t written = write(log_file->fd, log_file->buffer + start, log_file->buf_end - start);
+		if(written == -1) {
+			continue;
+		}
 		start += written;
 	}
 	
+	/* close does not flush, so this does make a difference */
 	if(flush) {
 		int ret = fsync(log_file->fd);
 		if(ret == -1) {
@@ -450,7 +467,7 @@ void archive_thread_main(void *arg)
 		/* this is the child */
 		
 		/* be very adamant that this is a low priority */
-		nice(10);
+		nice(20);
 		
 		char *argv[] = { "tar", "-czf", archive, directory, NULL };
 		
