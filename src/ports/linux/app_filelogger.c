@@ -228,8 +228,13 @@ void log_thread_main(void * arg)
 			current_log.buf_end -= start;
 		}
 		
-		/* wait on something */
-		
+		/*
+		This really needs to wait on an entry in the entry buffer,
+		clearing it as soon as there's something to use and CPU time to do it.
+		The main thread has priority so it will always be allowed to add entries
+		so long as we do not hold the mutex.
+		Lock-free queue (using atomics) could be good.
+		*/
 		os_usleep(2000);
 	}
 }
@@ -430,18 +435,16 @@ int finishLogGroup(DTL_data_t *timeframe)
 	
 	os_thread_create(
 		"log_archive_thread",
-		LOG_THREAD_PRIORITY+10,
+		ARCHIVE_PRIORITY,
 		4096,
 		archive_thread_main,
 		(void *) timeframe
 	);
 	
-	/* make sure it knows what to work on before returning and timeframe is potentially altered */
-	APP_LOG_DEBUG("Waiting on semaphore\n");
+	/* make sure it knows what to work on, before returning and timeframe is potentially altered */
 	os_sem_wait(finishDataSemaphore, OS_WAIT_FOREVER);
 	
 	os_sem_destroy(finishDataSemaphore);
-	APP_LOG_DEBUG("Semaphore destroyed\n");
 	
 	return 0;
 }
@@ -457,7 +460,14 @@ void archive_thread_main(void *arg)
 	/* got the data, let the logging thread continue */
 	os_sem_signal(finishDataSemaphore);
 	
-	APP_LOG_INFO("Zipping %s as %s\n", directory, archive);
+	#if defined(USE_SCHED_FIFO)
+	/* change scheduling policy to normal */
+	struct sched_param schedparam = {0};
+	int ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
+	if(ret != 0) {
+		APP_LOG_WARNING("\e[33mCould not change scheduling policy of archiving thread\e[0m - running real time at lower priority\n");
+	}
+	#endif
 	
 	pid_t child_pid;
 	int status;
@@ -466,9 +476,15 @@ void archive_thread_main(void *arg)
 	if(child_pid == 0) {
 		/* this is the child */
 		
-		/* be very adamant that this is a low priority */
+		#if !defined(USE_SCHED_FIFO)
+		/* be very adamant that this is a low priority
+		   SCHED_IDLE could be even better, occuring below everything
+		   Note that RT policies do not use nice values */
 		nice(20);
+		#endif
 		
+		/* xz might yield better ratio,
+		   although this is not text and xz is substantially slower */
 		char *argv[] = { "tar", "-czf", archive, directory, NULL };
 		
 		/* p searches so we don't have to */
@@ -479,14 +495,16 @@ void archive_thread_main(void *arg)
 		exit(EXIT_FAILURE);
 	}
 	else if(child_pid == -1) {
+		APP_LOG_ERROR("\e[31mFailed to instantiate archiving of %s\e[0m\n", directory);
 		return;
 	}
 	
+	APP_LOG_INFO("Archiving %s...\n", directory);
+	
 	waitpid(child_pid, &status, 0);
 	
-	APP_LOG_INFO("Tar finished\n");
-	
 	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+		APP_LOG_ERROR("\e[31mFailed to archive %s\e[0m\n", archive);
 		/* os_thread_create doesn't want us to return a value */
 		return;
 	}
@@ -506,15 +524,16 @@ void archive_thread_main(void *arg)
 		exit(EXIT_FAILURE);
 	}
 	else if(child_pid == -1) {
+		APP_LOG_ERROR("\e[31mFailed to delete %s\e[0m\n", directory);
 		return;
 	}
 	
 	waitpid(child_pid, &status, 0);
 	
 	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		APP_LOG_WARNING("\e[31mFailed to delete %s\e[0m\n", directory);
+		APP_LOG_ERROR("\e[31mFailed to delete %s\e[0m\n", directory);
 		return;
 	}
 	
-	APP_LOG_INFO("Deleted %s\n", directory);
+	APP_LOG_INFO("\e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
 }

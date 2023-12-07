@@ -45,6 +45,8 @@ typedef struct log_file
 #define LOG_THREAD_PRIORITY  12
 #define LOG_THREAD_STACKSIZE 65536 /* bytes */
 
+#define ARCHIVE_PRIORITY 8
+
 /**
  * Add a new entry to be logged.
  *
