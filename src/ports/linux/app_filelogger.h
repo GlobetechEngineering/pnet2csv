@@ -47,6 +47,9 @@ typedef struct log_file
 
 #define ARCHIVE_PRIORITY 8
 
+/* delete old logs when too few blocks are available */
+#define FREE_SPACE_PERCENT 20
+
 /**
  * Add a new entry to be logged.
  *
@@ -110,6 +113,8 @@ int finishLogFile(
 int finishLogGroup(DTL_data_t *timeframe);
 
 void archive_thread_main(void *arg);
+
+int deleteOldest();
 
 #ifdef __cplusplus
 }

@@ -19,8 +19,11 @@
 
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/wait.h>
+#include <dirent.h>
 #include <errno.h>
 
 static os_mutex_t *mutex;
@@ -133,7 +136,7 @@ void log_thread_main(void * arg)
 	log_file_t current_log = {.fd = -1 };
 	DTL_data_t curr_log_start = {0};
 	
-	APP_LOG_DEBUG("Hello from the logging thread\n");
+	APP_LOG_DEBUG("\e[92mLogging thread active\e[0m\n");
 	
 	while(true) {
 		os_mutex_lock(mutex);
@@ -184,7 +187,7 @@ void log_thread_main(void * arg)
 					os_usleep(500);
 					ret = startLogFile(&current_log, &curr_log_start);
 				}
-				APP_LOG_INFO("fd=%d\n", current_log.fd);
+				APP_LOG_INFO("\e[90mfd=%d\e[0m\n", current_log.fd);
 				
 				/* ready to process again */
 				os_mutex_lock(mutex);
@@ -197,7 +200,7 @@ void log_thread_main(void * arg)
 			
 			if(current_log.buf_end + (ENTRY_SIZE + 1) >= FILE_BUFFER_SIZE) {
 				/* Not losing anything yet, but the buffer needs something cleared before copying any more */
-				APP_LOG_WARNING("File buffer running low (%d/%d)\n", current_log.buf_end, FILE_BUFFER_SIZE);
+				APP_LOG_WARNING("File buffer running low (\e[33m%d/%d\e[0m)\n", current_log.buf_end, FILE_BUFFER_SIZE);
 				break;
 			}
 			
@@ -218,6 +221,10 @@ void log_thread_main(void * arg)
 			while(current_log.buf_end - start >= FILE_MIN_WRITE) {
 				ssize_t written = write(current_log.fd, current_log.buffer + start, current_log.buf_end - start);
 				if(written == -1) {
+					if(errno == EDQUOT || errno == ENOSPC) {
+						APP_LOG_WARNING("Write failed, clearing space...\n");
+						deleteOldest();
+					}
 					continue;
 				}
 				start += written;
@@ -265,12 +272,14 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 	
 	int ret = mkdir(date, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 	if(ret == -1 && errno != EEXIST) {
+		APP_LOG_ERROR("Failed to create %s\n", date);
 		return -1;
 	}
 	
 	/* O_PATH undefined ? */
 	int dirfd = open(date, O_DIRECTORY | O_CLOEXEC);
 	if(dirfd == -1) {
+		APP_LOG_ERROR("Failed to open %s\n", date);
 		return -1;
 	}
 	
@@ -297,10 +306,12 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 		);
 	}
 	
-	ret = close(dirfd);
+	if(close(dirfd) == -1) {
+		APP_LOG_WARNING("Failed to close %s\n", date);
+	}
 	
 	if(fd < 0) {
-		APP_LOG_WARNING("Opened %s but failed to close\n", date);
+		APP_LOG_ERROR("Could not start a log for %s/%02d-%02d\n", date, timeframe->hour, 10*(timeframe->minute/10));
 		return -1;
 	}
 	
@@ -358,6 +369,10 @@ int writeLogHeader(log_file_t *log_file)
 	/* all done, write it */
 	ssize_t written = write(log_file->fd, header, header_size);
 	if(written == -1) {
+		if(errno == EDQUOT || errno == ENOSPC) {
+			APP_LOG_WARNING("Write failed, clearing space...\n");
+			deleteOldest();
+		}
 		written = 0;
 	}
 	
@@ -373,9 +388,13 @@ int writeLogHeader(log_file_t *log_file)
 		log_file->buf_end = remnant;
 	}
 	
-	if(fsync(log_file->fd) == -1) {
-		if(errno == EBADF || errno == ENOSPC) {
+	while(fsync(log_file->fd) == -1) {
+		if(errno == EBADF) {
 			return -1;
+		}
+		else if(errno == ENOSPC || errno == EDQUOT) {
+			APP_LOG_WARNING("File sync failed, clearing space...\n");
+			deleteOldest();
 		}
 	}
 	
@@ -388,6 +407,10 @@ int finishLogFile(log_file_t *log_file, bool flush)
 		/* make sure there's room for one more byte! */
 		ssize_t written = write(log_file->fd, log_file->buffer, FILE_MIN_WRITE);
 		if(written == -1) {
+			if(errno == EDQUOT || errno == ENOSPC) {
+				APP_LOG_WARNING("Write failed, clearing space...\n");
+				deleteOldest();
+			}
 			continue;
 		}
 		
@@ -404,6 +427,10 @@ int finishLogFile(log_file_t *log_file, bool flush)
 	while(start < log_file->buf_end) {
 		ssize_t written = write(log_file->fd, log_file->buffer + start, log_file->buf_end - start);
 		if(written == -1) {
+			if(errno == EDQUOT || errno == ENOSPC) {
+				APP_LOG_WARNING("Write failed, clearing space...\n");
+				deleteOldest();
+			}
 			continue;
 		}
 		start += written;
@@ -412,8 +439,15 @@ int finishLogFile(log_file_t *log_file, bool flush)
 	/* close does not flush, so this does make a difference */
 	if(flush) {
 		int ret = fsync(log_file->fd);
-		if(ret == -1) {
-			return -1;
+		while(ret == -1) {
+			if(errno == EDQUOT || errno == ENOSPC) {
+				APP_LOG_WARNING("File sync failed, clearing space...\n");
+				deleteOldest();
+			}
+			else {
+				return -1;
+			}
+			ret = fsync(log_file->fd);
 		}
 	}
 	
@@ -454,7 +488,7 @@ void archive_thread_main(void *arg)
 	DTL_data_t *timeframe = (DTL_data_t *) arg;
 	
 	char directory[16], archive[24];
-	sprintf(directory, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
+	sprintf(directory, "%4u%02u%02u", timeframe->year, timeframe->month, timeframe->day);
 	sprintf(archive, "%s.tgz", directory);
 	
 	/* got the data, let the logging thread continue */
@@ -536,4 +570,86 @@ void archive_thread_main(void *arg)
 	}
 	
 	APP_LOG_INFO("\e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
+	
+	struct statvfs statbuf;
+	int ret = statvfs(".", &statbuf);
+	while(ret == 0 && statbuf.f_bfree * 100 / statbuf.f_blocks < FREE_SPACE_PERCENT) {
+		APP_LOG_INFO("\e[33m%lu/%lu\e[0m blocks available, clearing space...\n", statbuf.f_bfree, statbuf.f_blocks);
+		deleteOldest();
+		
+		ret = statvfs(".", &statbuf);
+	}
+}
+
+int deleteOldest()
+{
+	DIR *dirp = opendir(".");
+	if(dirp == NULL) {
+		return -1;
+	}
+	
+	/* date of oldest */
+	unsigned short int year = 9999, month = 99, day = 99;
+	
+	struct dirent *entry;
+	
+	for(entry = readdir(dirp); entry != NULL; entry = readdir(dirp)) {
+		/* components are fixed-length and zero-padded
+		   - strcmp could be appropriate? */
+		unsigned short int _year, _month, _day;
+		char end;
+		
+		int matches = sscanf(entry->d_name, "%4hu%2hu%2hu.tgz%c", &_year, &_month, &_day, &end);
+		
+		if(matches != 3)
+			continue;
+		
+		if(_year > year)
+			continue;
+		else if(_year < year) {
+			year = _year;
+			month = _month;
+			day = _day;
+			continue;
+		}
+			
+		if(_month > month)
+			continue;
+		else if(_month < month) {
+			year = _year;
+			month = _month;
+			day = _day;
+			continue;
+		}
+		
+		if(_day > day)
+			continue;
+		else if(_day < day) {
+			year = _year;
+			month = _month;
+			day = _day;
+			continue;
+		}
+	}
+	
+	if(closedir(dirp) == -1)
+		return -1;
+	
+	if(year == 9999 && month == 99 && day == 99) {
+		APP_LOG_WARNING("\e[31mNothing to delete\e[0m\n");
+		return -1;
+	}
+	
+	char fname[16];
+	sprintf(fname, "%04hu%02hu%02hu.tgz", year, month, day);
+	int ret = unlink(fname);
+	
+	if(ret == -1) {
+		APP_LOG_ERROR("\e[91mFailed to delete %s\e[0m\n", fname);
+		return -1;
+	}
+	
+	APP_LOG_INFO("\e[35m\"Deleted\" %s\e[0m\n", fname);
+	
+	return 0;
 }
