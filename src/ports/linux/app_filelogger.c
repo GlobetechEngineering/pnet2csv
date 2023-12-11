@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "app_filelogger.h"
 
 #include "app_data.h"
@@ -25,11 +27,17 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <errno.h>
+#include <ftw.h>
 
 static os_mutex_t *mutex;
 static os_sem_t *finishDataSemaphore;
 static entry_buffer_t entries;
 static bool bigendian = true;
+
+static void log_thread_main(void * arg);
+static void archive_thread_main(void *arg);
+/* struct FTW needs _GNU_SOURCE, which causes problems in the header when other files include it */
+static int ftw_delete(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf);
 
 int addLogEntry(
 	DTL_data_t *timestamp,
@@ -543,34 +551,12 @@ void archive_thread_main(void *arg)
 		return;
 	}
 	
-	/* deleting a folder of files is a nuisance... just use rm */
-	child_pid = fork();
-	if(child_pid == 0) {
-		/* this is the child */
-		
-		char *argv[] = { "rm", "-rf", directory, NULL };
-		
-		/* p searches so we don't have to */
-		execvp("rm", argv);
-		
-		/* exec didn't replace us... don't want this process hanging around */
-		/* Goodbye, world! */
-		exit(EXIT_FAILURE);
-	}
-	else if(child_pid == -1) {
-		APP_LOG_ERROR("\e[31mFailed to delete %s\e[0m\n", directory);
-		return;
-	}
-	
-	waitpid(child_pid, &status, 0);
-	
-	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		APP_LOG_ERROR("\e[31mFailed to delete %s\e[0m\n", directory);
-		return;
-	}
+	/* delete the now-compressed directory */
+	nftw(directory, ftw_delete, 1, FTW_DEPTH | FTW_PHYS);
 	
 	APP_LOG_INFO("\e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
 	
+	/* delete old archives if not much space is available */
 	struct statvfs statbuf;
 	int ret = statvfs(".", &statbuf);
 	while(ret == 0 && statbuf.f_bfree * 100 / statbuf.f_blocks < FREE_SPACE_PERCENT) {
@@ -579,6 +565,21 @@ void archive_thread_main(void *arg)
 		
 		ret = statvfs(".", &statbuf);
 	}
+}
+
+int ftw_delete(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+	if(typeflag == FTW_F) {
+		if(unlink(fpath) == -1)
+			APP_LOG_ERROR("\e[31mFailed to delete %s\e[0m\n", fpath);
+	}
+	else if(typeflag == FTW_DP) {
+		if(rmdir(fpath) == -1)
+			APP_LOG_ERROR("\e[91mFailed to delete %s\e[0m\n", fpath);
+	}
+	
+	/* continue the walk */
+	return 0;
 }
 
 int deleteOldest()

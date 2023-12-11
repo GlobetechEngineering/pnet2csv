@@ -72,13 +72,6 @@ int addLogEntry(
 int initialiseLoggerThread(entry_buffer_t *entries);
 
 /**
- * Main function for the logging thread
- *
- * @param arg              In     buffer that entries and mutex will exist in
- */
-void log_thread_main(void * arg);
-
-/**
  * Compare timestamps for whether they should belong to the same log
  *
  * @param ts_1             In     First timestamp
@@ -112,8 +105,9 @@ int finishLogFile(
  */
 int finishLogGroup(DTL_data_t *timeframe);
 
-void archive_thread_main(void *arg);
-
+/**
+ * Identifies the oldest archive and deletes it
+ */
 int deleteOldest();
 
 #ifdef __cplusplus
