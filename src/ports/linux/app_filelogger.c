@@ -507,10 +507,20 @@ void archive_thread_main(void *arg)
 	/* got the data, let the logging thread continue */
 	os_sem_signal(finishDataSemaphore);
 	
+	/* delete old archives if not much space is available */
+	struct statvfs statbuf;
+	int ret = statvfs(".", &statbuf);
+	while(ret == 0 && statbuf.f_bfree * 100 / statbuf.f_blocks < FREE_SPACE_PERCENT) {
+		APP_LOG_INFO("\e[33m%lu/%lu\e[0m blocks available, clearing space...\n", statbuf.f_bfree, statbuf.f_blocks);
+		deleteOldest();
+		
+		ret = statvfs(".", &statbuf);
+	}
+	
 	/* set scheduling policy to normal */
 	APP_LOG_DEBUG("Setting SCHED_OTHER\n");
 	struct sched_param schedparam = {0};
-	int ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
+	ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
 	if(ret != 0) {
 		APP_LOG_WARNING("\e[33mCould not set archiving scheduling policy\e[0m\n");
 	}
@@ -555,16 +565,6 @@ void archive_thread_main(void *arg)
 	nftw(directory, ftw_delete, 1, FTW_DEPTH | FTW_PHYS);
 	
 	APP_LOG_INFO("\e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
-	
-	/* delete old archives if not much space is available */
-	struct statvfs statbuf;
-	ret = statvfs(".", &statbuf);
-	while(ret == 0 && statbuf.f_bfree * 100 / statbuf.f_blocks < FREE_SPACE_PERCENT) {
-		APP_LOG_INFO("\e[33m%lu/%lu\e[0m blocks available, clearing space...\n", statbuf.f_bfree, statbuf.f_blocks);
-		deleteOldest();
-		
-		ret = statvfs(".", &statbuf);
-	}
 }
 
 int ftw_delete(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
