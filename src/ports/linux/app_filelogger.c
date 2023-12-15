@@ -75,7 +75,7 @@ int addLogEntry(
 	os_mutex_lock(mutex);
 	
 	static unsigned int drop_count = 0;
-	static unsigned int next_logged_drop = 1;
+	static unsigned int next_logged_drop = 2;
 	
 	if((entries.end + ENTRY_SIZE)%ENTRY_BUFFER_SIZE == entries.start) {
 		/*
@@ -87,16 +87,16 @@ int addLogEntry(
 		++drop_count;
 		if(drop_count >= next_logged_drop) {
 			APP_LOG_WARNING("Data buffer full - dropped %u entries!\n", drop_count);
-			next_logged_drop *= 2;
+			next_logged_drop *= 5;
 		}
 		return -1;
 	}
 	
 	if(drop_count != 0) {
-		APP_LOG_WARNING("[%2d:%2d] Recovered after \e[31m%u\e[0m dropped.\n", timestamp->hour, timestamp->minute, drop_count);
+		APP_LOG_WARNING("[%2d:%02d] Recovered after \e[31m%u\e[0m dropped.\n", timestamp->hour, timestamp->minute, drop_count);
 	
 		drop_count = 0;
-		next_logged_drop = 1;
+		next_logged_drop = 2;
 	}
 	
 	size_t end = entries.end;
@@ -207,8 +207,10 @@ void log_thread_main(void * arg)
 			}
 			
 			if(current_log.buf_end + (ENTRY_SIZE + 1) >= FILE_BUFFER_SIZE) {
+				int remaining = ((entries->end - entries->start) % ENTRY_BUFFER_SIZE) / ENTRY_SIZE;
 				/* Not losing anything yet, but the buffer needs something cleared before copying any more */
-				APP_LOG_WARNING("File buffer running low (\e[33m%d/%d\e[0m)\n", current_log.buf_end, FILE_BUFFER_SIZE);
+				APP_LOG_WARNING("File buffer running low (\e[33m%d\e[0m/%d), leaving \e[93m%d\e[0m/%d entries\n",
+					current_log.buf_end, FILE_BUFFER_SIZE, remaining, ENTRY_BUFFER_SIZE / ENTRY_SIZE);
 				break;
 			}
 			
@@ -323,7 +325,7 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 		return -1;
 	}
 	
-	APP_LOG_INFO("Starting %s/%s... ", date, fname);
+	APP_LOG_INFO("\e[31mStarting %s/%s...\e[0m ", date, fname);
 	
 	log_file->fd = fd;
 	log_file->bigendian = true;
@@ -464,7 +466,7 @@ int finishLogFile(log_file_t *log_file, bool flush)
 		return -1;
 	}
 	
-	APP_LOG_INFO("Saved successfully.\n");
+	APP_LOG_INFO("\e[32mSaved successfully.\e[0m\n");
 	
 	log_file->fd = -1;
 	
@@ -493,6 +495,9 @@ int finishLogGroup(DTL_data_t *timeframe)
 
 void archive_thread_main(void *arg)
 {
+	/* TODO the code to deal with a directory should be split out,
+	   and this function invokes it on all finished directories that might be hanging around */
+	
 	DTL_data_t *timeframe = (DTL_data_t *) arg;
 	
 	char directory[16], archive[24];
@@ -502,14 +507,13 @@ void archive_thread_main(void *arg)
 	/* got the data, let the logging thread continue */
 	os_sem_signal(finishDataSemaphore);
 	
-	#if defined(USE_SCHED_FIFO)
-	/* change scheduling policy to normal */
+	/* set scheduling policy to normal */
+	APP_LOG_DEBUG("Setting SCHED_OTHER\n");
 	struct sched_param schedparam = {0};
 	int ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
 	if(ret != 0) {
-		APP_LOG_WARNING("\e[33mCould not change scheduling policy of archiving thread\e[0m - running real time at lower priority\n");
+		APP_LOG_WARNING("\e[33mCould not set archiving scheduling policy\e[0m\n");
 	}
-	#endif
 	
 	pid_t child_pid;
 	int status;
@@ -518,12 +522,8 @@ void archive_thread_main(void *arg)
 	if(child_pid == 0) {
 		/* this is the child */
 		
-		#if !defined(USE_SCHED_FIFO)
-		/* be very adamant that this is a low priority
-		   SCHED_IDLE could be even better, occuring below everything
-		   Note that RT policies do not use nice values */
-		nice(20);
-		#endif
+		/* reduce the priority some more */
+		nice(10);
 		
 		/* xz might yield better ratio,
 		   although this is not text and xz is substantially slower */
@@ -558,7 +558,7 @@ void archive_thread_main(void *arg)
 	
 	/* delete old archives if not much space is available */
 	struct statvfs statbuf;
-	int ret = statvfs(".", &statbuf);
+	ret = statvfs(".", &statbuf);
 	while(ret == 0 && statbuf.f_bfree * 100 / statbuf.f_blocks < FREE_SPACE_PERCENT) {
 		APP_LOG_INFO("\e[33m%lu/%lu\e[0m blocks available, clearing space...\n", statbuf.f_bfree, statbuf.f_blocks);
 		deleteOldest();
@@ -650,7 +650,7 @@ int deleteOldest()
 		return -1;
 	}
 	
-	APP_LOG_INFO("\e[35m\"Deleted\" %s\e[0m\n", fname);
+	APP_LOG_INFO("\e[35mDeleted %s\e[0m\n", fname);
 	
 	return 0;
 }
