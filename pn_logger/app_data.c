@@ -34,7 +34,6 @@
  * Todo: Data is always in pnio data format. Add conversion to uint32_t.
  */
  
-static uint8_t datatypelist[APP_GSDML_DATATYPELIST_LENGTH] = {0};
 static uint8_t installationid[APP_GSDML_INSTALLATIONID_LENGTH] = {0};
 
 /* Digital submodule process data
@@ -85,22 +84,6 @@ int app_data_set_output_data (
 			// convert from network endian
 			PLCtimestamp.year = CC_FROM_BE16(PLCtimestamp.year);
 			PLCtimestamp.nanosecond = CC_FROM_BE32(PLCtimestamp.nanosecond);
-	
-			/*
-			static uint8_t lastsecond = 0;
-			if(PLCtimestamp.second != lastsecond) {
-				APP_LOG_DEBUG("%04d-%02d-%02d %02d:%02d:%02d.%09d\n",
-					PLCtimestamp.year,
-					PLCtimestamp.month,
-					PLCtimestamp.day,
-					PLCtimestamp.hour,
-					PLCtimestamp.minute,
-					PLCtimestamp.second,
-					PLCtimestamp.nanosecond
-				);
-				lastsecond = PLCtimestamp.second;
-			}
-			*/
 			
 			return 0;
 		}
@@ -108,22 +91,6 @@ int app_data_set_output_data (
 	else if (submodule_id == APP_GSDML_SUBMOD_ID_LOGW64) {
 		if(size == APP_GSDML_VAR64_DATA_DIGITAL_SIZE) {
 			memcpy(variabledata, data, size);
-			
-			/*
-			static uint8_t lastsecond = 0;
-			
-			if(PLCtimestamp.second != lastsecond) {
-				printf("typelist = %64s\n", datatypelist);
-				printf("ID = %8s\n", installationid);
-				
-				for(int i = 0; i < APP_GSDML_VAR64_DATA_DIGITAL_SIZE; i++) {
-					printf("%02x", variabledata[i]);
-				}
-				printf("\n");
-				
-				lastsecond = PLCtimestamp.second;
-			}
-			*/
 			
 			return 0;
 		}
@@ -170,10 +137,7 @@ int app_data_write_parameter (
       return -1;
    }
    
-    if(index == APP_GSDML_PARAMETER_DATATYPELIST_IDX) {
-	    memcpy(&datatypelist, data, length);
-    }
-	else if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
+    if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
 	    memcpy(&installationid, data, length);
     }
 	
@@ -217,11 +181,7 @@ int app_data_read_parameter (
 
    APP_LOG_DEBUG ("  Reading \"%s\"\n", par_cfg->name);
    
-    if(index == APP_GSDML_PARAMETER_DATATYPELIST_IDX) {
-		*data = (uint8_t *) &datatypelist;
-		*length = sizeof (datatypelist);
-	}
-	else if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
+    if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
 		*data = (uint8_t *) &installationid;
 		*length = sizeof (installationid);
 	}
@@ -232,12 +192,10 @@ int app_data_read_parameter (
 }
 
 int app_read_log_parameters (
-	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH],
-	uint8_t parm_dtypelist[APP_GSDML_DATATYPELIST_LENGTH])
+	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH])
 {
 	/* Make a copy */
 	memcpy(parm_installid, installationid, APP_GSDML_INSTALLATIONID_LENGTH);
-	memcpy(parm_dtypelist, datatypelist, APP_GSDML_DATATYPELIST_LENGTH);
 	
 	return 0;
 }

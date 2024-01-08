@@ -38,7 +38,6 @@ typedef struct log_file
 	
 	bool bigendian;
 	uint8_t log_id[APP_GSDML_INSTALLATIONID_LENGTH];
-	uint8_t type_list[APP_GSDML_DATATYPELIST_LENGTH];
 	/* first, last timestamp ? */
 } log_file_t;
 

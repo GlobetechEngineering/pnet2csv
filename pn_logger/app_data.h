@@ -155,8 +155,7 @@ int app_data_read_parameter (
  * @return 0 on success, -1 on error
  */
 int app_read_log_parameters (
-	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH],
-	uint8_t parm_dtypelist[APP_GSDML_DATATYPELIST_LENGTH]);
+	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH]);
 
 /**
  * Read out log data

@@ -116,7 +116,7 @@ static const app_gsdml_submodule_t submod_log_w64 = {
    .data_dir = PNET_DIR_OUTPUT,
    .insize = 0,
    .outsize = APP_GSDML_VAR64_DATA_DIGITAL_SIZE,
-   .parameters = {APP_GSDML_PARAMETER_INSTALLATIONID_IDX, APP_GSDML_PARAMETER_DATATYPELIST_IDX, 0}};
+   .parameters = {APP_GSDML_PARAMETER_INSTALLATIONID_IDX, 0}};
 
 /** List of supported modules */
 static const app_gsdml_module_t * app_gsdml_modules[] = {
@@ -148,11 +148,6 @@ static app_gsdml_param_t app_gsdml_parameters[] = {
       .index = APP_GSDML_PARAMETER_INSTALLATIONID_IDX,
       .name = "Installation ID",
       .length = APP_GSDML_INSTALLATIONID_LENGTH,
-   },
-   {
-      .index = APP_GSDML_PARAMETER_DATATYPELIST_IDX,
-      .name = "Data types",
-      .length = APP_GSDML_DATATYPELIST_LENGTH,
    }
 };
 

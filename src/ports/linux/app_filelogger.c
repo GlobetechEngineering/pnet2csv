@@ -275,7 +275,7 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 {
 	/* reusing log_file because the buffers are large */
 	log_file->buf_end = 0;
-	app_read_log_parameters(log_file->log_id, log_file->type_list);
+	app_read_log_parameters(log_file->log_id);
 	
 	char date[16];
 	sprintf(date, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
@@ -340,7 +340,7 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 
 int writeLogHeader(log_file_t *log_file)
 {
-	unsigned int header_size = 4+3+1+APP_GSDML_INSTALLATIONID_LENGTH+1+APP_GSDML_DATATYPELIST_LENGTH;
+	unsigned int header_size = 4+3+1+APP_GSDML_INSTALLATIONID_LENGTH+1;
 	uint8_t header[header_size];
 	
 	/* Assert the format of the file */
@@ -368,13 +368,8 @@ int writeLogHeader(log_file_t *log_file)
 	memcpy(header+8, log_file->log_id, APP_GSDML_INSTALLATIONID_LENGTH);
 	
 	/* word count */
-	/* digital size is bytes and words are 2
-	   could use datatypelist length instead ...
-	*/
+	/* digital size is bytes and words are 2 */
 	header[8+APP_GSDML_INSTALLATIONID_LENGTH] = APP_GSDML_VAR64_DATA_DIGITAL_SIZE/2;
-	
-	/* data types */
-	memcpy(header+9+APP_GSDML_INSTALLATIONID_LENGTH, log_file->type_list, APP_GSDML_DATATYPELIST_LENGTH);
 	
 	/* all done, write it */
 	ssize_t written = write(log_file->fd, header, header_size);
