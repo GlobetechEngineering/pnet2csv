@@ -79,13 +79,27 @@ int initialiseLoggerThread(entry_buffer_t *entries);
 bool DTLs_for_same_log(DTL_data_t *ts_1, DTL_data_t *ts_2);
 
 /**
+ * Provide file descriptor the log folder, creating the relevant directories
+ * if necessary, and reusing the descriptor if already open
+ *
+ * @return The file descriptor, -1 on error
+ */
+int openLogDir();
+
+/**
  * Start a new log in storage, assigning fd and flushing headers
  *
  * @param log_file         Out:   the new log
  * @return 0 on success, -1 on error
  */
 int startLogFile(log_file_t *log_file, DTL_data_t *timeframe);
-	
+
+/**
+ * Write non-repeated data into log file, attempting sync
+ *
+ * @param log_file         In
+ * @return 0 on success, -1 on error
+ */
 int writeLogHeader(log_file_t *log_file);
 
 /**
@@ -99,13 +113,15 @@ int finishLogFile(
 	bool flush);
 
 /**
- * Compress a day of logs, send it elsewhere, etc.
+ * Manage space by clearing old logs and compressing the new day
  * @param timeframe        In:     The day that was finished
  */
 int finishLogGroup(DTL_data_t *timeframe);
 
 /**
  * Identifies the oldest archive and deletes it
+ *
+ * @return 0 on sucess, -1 on error
  */
 int deleteOldest();
 

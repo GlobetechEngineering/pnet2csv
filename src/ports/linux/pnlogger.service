@@ -1,0 +1,22 @@
+# Service to run the DAQ application
+
+[Unit]
+Description=Profinet DAQ application
+After=network.target
+# Change to this line if waiting for snmpd to start
+#After=network.target snmpd.service
+
+[Service]
+Type=simple
+ExecStartPre=/sbin/ifconfig eth0 up
+# normal range appears to be 32768 60999
+ExecStartPre=/bin/sh -c '/bin/echo "49152 60999" > /proc/sys/net/ipv4/ip_local_port_range'
+# Enable this line if waiting for snmpd to start
+#ExecStartPre=/usr/bin/sleep 1.0
+WorkingDirectory=/var/opt/pnlogger
+ExecStart=/opt/pnlogger/bin/pn_dev -vvvv
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

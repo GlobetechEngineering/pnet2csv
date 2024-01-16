@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "app_filelogger.h"
 
 #include "app_data.h"
@@ -27,7 +25,6 @@
 #include <sys/wait.h>
 #include <dirent.h>
 #include <errno.h>
-#include <ftw.h>
 
 static os_mutex_t *mutex;
 static os_sem_t *finishDataSemaphore;
@@ -36,8 +33,6 @@ static bool bigendian = true;
 
 static void log_thread_main(void * arg);
 static void archive_thread_main(void *arg);
-/* struct FTW needs _GNU_SOURCE, which causes problems in the header when other files include it */
-static int ftw_delete(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf);
 
 int addLogEntry(
 	DTL_data_t *timestamp,
@@ -271,6 +266,40 @@ bool DTLs_for_same_log(DTL_data_t *ts_1, DTL_data_t *ts_2)
 	}
 }
 
+int openLogDir() {
+	static int logdir_fd = -1;
+	int ret;
+	
+	if(logdir_fd != -1)
+		return logdir_fd;
+	
+	/* FHS says /var/opt is required to exist, so assume it does */
+	
+	ret = mkdir("/var/opt/pnlogger", S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+	if(ret == -1 && errno != EEXIST) {
+		APP_LOG_ERROR("Failed to create /var/opt/pnlogger\n");
+		return -1;
+	}
+	
+	ret = mkdir("/var/opt/pnlogger/data", S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+	if(ret == -1 && errno != EEXIST) {
+		APP_LOG_ERROR("Failed to create /var/opt/pnlogger/data\n");
+		return -1;
+	}
+	
+	/* Sure would be nice if O_CREAT | O_DIRECTORY did the logical thing! */
+	
+	ret = open("/var/opt/pnlogger/data", O_DIRECTORY);
+	if(ret == -1) {
+		APP_LOG_ERROR("Failed to open /var/opt/pnlogger/data\n");
+		return -1;
+	}
+	
+	logdir_fd = ret;
+	
+	return logdir_fd;
+}
+
 int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 {
 	/* reusing log_file because the buffers are large */
@@ -280,14 +309,18 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 	char date[16];
 	sprintf(date, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
 	
-	int ret = mkdir(date, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+	int logdir_fd = openLogDir();
+	if(logdir_fd == -1)
+		return -1;
+	
+	int ret = mkdirat(logdir_fd, date, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 	if(ret == -1 && errno != EEXIST) {
 		APP_LOG_ERROR("Failed to create %s\n", date);
 		return -1;
 	}
 	
-	/* O_PATH undefined ? */
-	int dirfd = open(date, O_DIRECTORY | O_CLOEXEC);
+	/* O_PATH requires _GNU_SOURCE */
+	int dirfd = openat(logdir_fd, date, O_DIRECTORY | O_CLOEXEC);
 	if(dirfd == -1) {
 		APP_LOG_ERROR("Failed to open %s\n", date);
 		return -1;
@@ -325,7 +358,7 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 		return -1;
 	}
 	
-	APP_LOG_INFO("\e[31mStarting %s/%s...\e[0m ", date, fname);
+	APP_LOG_INFO("Starting %s/%s... ", date, fname);
 	
 	log_file->fd = fd;
 	log_file->bigendian = true;
@@ -461,7 +494,7 @@ int finishLogFile(log_file_t *log_file, bool flush)
 		return -1;
 	}
 	
-	APP_LOG_INFO("\e[32mSaved successfully.\e[0m\n");
+	APP_LOG_INFO("Saved successfully.\n");
 	
 	log_file->fd = -1;
 	
@@ -492,6 +525,7 @@ void archive_thread_main(void *arg)
 {
 	/* TODO the code to deal with a directory should be split out,
 	   and this function invokes it on all finished directories that might be hanging around */
+	int ret;
 	
 	DTL_data_t *timeframe = (DTL_data_t *) arg;
 	
@@ -502,14 +536,18 @@ void archive_thread_main(void *arg)
 	/* got the data, let the logging thread continue */
 	os_sem_signal(finishDataSemaphore);
 	
+	int logdir_fd = openLogDir();
+	if(logdir_fd == -1)
+		return;
+	
 	/* delete old archives if not much space is available */
 	struct statvfs statbuf;
-	int ret = statvfs(".", &statbuf);
+	ret = fstatvfs(logdir_fd, &statbuf);
 	while(ret == 0 && statbuf.f_bfree * 100 / statbuf.f_blocks < FREE_SPACE_PERCENT) {
 		APP_LOG_INFO("\e[33m%lu/%lu\e[0m blocks available, clearing space...\n", statbuf.f_bfree, statbuf.f_blocks);
 		deleteOldest();
 		
-		ret = statvfs(".", &statbuf);
+		ret = fstatvfs(logdir_fd, &statbuf);
 	}
 	
 	/* set scheduling policy to normal */
@@ -517,7 +555,7 @@ void archive_thread_main(void *arg)
 	struct sched_param schedparam = {0};
 	ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
 	if(ret != 0) {
-		APP_LOG_WARNING("\e[33mCould not set archiving scheduling policy\e[0m\n");
+		APP_LOG_WARNING("Archiving: \e[33mCould not set scheduling policy\e[0m\n");
 	}
 	
 	pid_t child_pid;
@@ -529,6 +567,11 @@ void archive_thread_main(void *arg)
 		
 		/* reduce the priority some more */
 		nice(10);
+		
+		if(fchdir(logdir_fd) == -1) {
+			APP_LOG_ERROR("Archiving: could not set working directory\n");
+			return;
+		}
 		
 		/* xz might yield better ratio,
 		   although this is not text and xz is substantially slower */
@@ -542,7 +585,7 @@ void archive_thread_main(void *arg)
 		exit(EXIT_FAILURE);
 	}
 	else if(child_pid == -1) {
-		APP_LOG_ERROR("\e[31mFailed to instantiate archiving of %s\e[0m\n", directory);
+		APP_LOG_ERROR("Archiving: \e[31mFailed to instantiate for %s\e[0m\n", directory);
 		return;
 	}
 	
@@ -551,30 +594,49 @@ void archive_thread_main(void *arg)
 	waitpid(child_pid, &status, 0);
 	
 	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
-		APP_LOG_ERROR("\e[31mFailed to archive %s\e[0m\n", archive);
+		APP_LOG_ERROR("Archiving: \e[31mFailed to archive %s\e[0m\n", archive);
 		/* os_thread_create doesn't want us to return a value */
 		return;
 	}
 	
 	/* delete the now-compressed directory */
-	nftw(directory, ftw_delete, 1, FTW_DEPTH | FTW_PHYS);
-	
-	APP_LOG_INFO("\e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
-}
-
-int ftw_delete(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
-{
-	if(typeflag == FTW_F) {
-		if(unlink(fpath) == -1)
-			APP_LOG_ERROR("\e[31mFailed to delete %s\e[0m\n", fpath);
-	}
-	else if(typeflag == FTW_DP) {
-		if(rmdir(fpath) == -1)
-			APP_LOG_ERROR("\e[91mFailed to delete %s\e[0m\n", fpath);
+	int dir_fd = openat(logdir_fd, directory, O_DIRECTORY);
+	if(dir_fd == -1) {
+		APP_LOG_ERROR("Archiving: Failed to open %s\n", directory);
+		return;
 	}
 	
-	/* continue the walk */
-	return 0;
+	DIR *loggroup_dirp = fdopendir(dir_fd);
+	if(loggroup_dirp == NULL) {
+		APP_LOG_ERROR("Archiving: Failed to open %s\n", directory);
+		return;
+	}
+		
+	struct dirent *entry;
+	
+	for(entry = readdir(loggroup_dirp); entry != NULL; entry = readdir(loggroup_dirp)) {
+		if(entry->d_name[0] == '.'
+		   && (entry->d_name[1] == '\0' || (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+			/* I'm so glad these appear in every directory listing */
+			continue;
+		}
+		
+		/* use unlinkat because "rmdirat" does not exist */
+		if(unlinkat(dir_fd, entry->d_name, 0) == -1) {
+			APP_LOG_WARNING("Archiving: \e[31mFailed to delete %s\e[0m\n", entry->d_name);
+			/* keep going anyway */
+		}
+	}
+	
+	if(closedir(loggroup_dirp) == -1)
+		return;
+	
+	if(unlinkat(logdir_fd, directory, AT_REMOVEDIR) == -1) {
+		APP_LOG_WARNING("Archiving: \e[31mFailed to delete %s\e[0m\n", directory);
+		return;
+	}
+	
+	APP_LOG_INFO("Archiving: \e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
 }
 
 int deleteOldest()
