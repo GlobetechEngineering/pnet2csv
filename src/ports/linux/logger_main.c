@@ -60,26 +60,13 @@ app_args_t app_args = {0};
 
 void show_usage()
 {
-   printf ("\nSample application for p-net Profinet device stack.\n");
+   printf ("\nData acquisition application using p-net Profinet device stack.\n");
    printf ("\n");
    printf ("Wait for connection from IO-controller.\n");
-   printf ("Then read buttons (input) and send to controller.\n");
-   printf ("Listen for application LED output (from controller) and set "
-           "application LED state.\n");
-   printf ("It will also send a counter value (useful also without buttons and "
-           "LED).\n");
-   printf ("Button1 value is sent in the periodic data.\n");
-   printf ("Button2 cycles through triggering an alarm, setting diagnosis and "
-           "creating logbook entries.\n");
+   printf ("Then read output (from controller) and write to log files.\n");
    printf ("\n");
    printf ("Also the mandatory Profinet signal LED is controlled by this "
            "application.\n");
-   printf ("\n");
-   printf ("The LEDs are controlled by the script set_profinet_leds\n");
-   printf ("located in the same directory as the application binary.\n");
-   printf ("A version for Raspberry Pi is available, and also a version "
-           "writing\n");
-   printf ("to plain text files (useful for demo if no LEDs are available).\n");
    printf ("\n");
    printf ("Assumes the default gateway is found on .1 on same subnet as the "
            "IP address.\n");
@@ -87,7 +74,7 @@ void show_usage()
    printf ("Optional arguments:\n");
    printf ("   --help       Show this help text and exit\n");
    printf ("   -h           Show this help text and exit\n");
-   printf ("   -v           Incresase verbosity. Can be repeated.\n");
+   printf ("   -v           Increase verbosity. Can be repeated up to four times.\n");
    printf ("   -f           Reset to factory settings, and store to file. "
            "Exit.\n");
    printf ("                Remember to give the -p flag if necessary.\n");
@@ -104,10 +91,6 @@ void show_usage()
       "   -s NAME      Set station name. Defaults to \"%s\". Only used\n",
       APP_GSDML_DEFAULT_STATION_NAME);
    printf ("                if not already available in storage file.\n");
-   printf ("   -b FILE      Path (absolute or relative) to read Button1. "
-           "Defaults to not read Button1.\n");
-   printf ("   -d FILE      Path (absolute or relative) to read Button2. "
-           "Defaults to not read Button2.\n");
    printf ("   -p PATH      Absolute path to storage directory. Defaults to "
            "use current directory.\n");
 #if PNET_OPTION_DRIVER_ENABLE
@@ -144,8 +127,6 @@ app_args_t parse_commandline_arguments (int argc, char * argv[])
    }
 
    /* Default values */
-   strcpy (output_arguments.path_button1, "");
-   strcpy (output_arguments.path_button2, "");
    strcpy (output_arguments.path_storage_directory, "");
    strcpy (output_arguments.station_name, APP_GSDML_DEFAULT_STATION_NAME);
    strcpy (output_arguments.eth_interfaces, APP_DEFAULT_ETHERNET_INTERFACE);
@@ -181,22 +162,6 @@ app_args_t parse_commandline_arguments (int argc, char * argv[])
          break;
       case 's':
          strcpy (output_arguments.station_name, optarg);
-         break;
-      case 'b':
-         if (strlen (optarg) + 1 > PNET_MAX_FILE_FULLPATH_SIZE)
-         {
-            printf ("Error: The argument to -b is too long.\n");
-            exit (EXIT_FAILURE);
-         }
-         strcpy (output_arguments.path_button1, optarg);
-         break;
-      case 'd':
-         if (strlen (optarg) + 1 > PNET_MAX_FILE_FULLPATH_SIZE)
-         {
-            printf ("Error: The argument to -d is too long.\n");
-            exit (EXIT_FAILURE);
-         }
-         strcpy (output_arguments.path_button2, optarg);
          break;
       case 'p':
          if (strlen (optarg) + 1 > PNET_MAX_FILE_FULLPATH_SIZE)
@@ -283,55 +248,9 @@ bool read_bool_from_file (const char * filepath)
    return ch == '1';
 }
 
-bool app_get_button (uint16_t id)
-{
-   if (id == 0)
-   {
-      if (app_args.path_button1[0] != '\0')
-      {
-         return read_bool_from_file (app_args.path_button1);
-      }
-   }
-   else if (id == 1)
-   {
-      if (app_args.path_button2[0] != '\0')
-      {
-         return read_bool_from_file (app_args.path_button2);
-      }
-   }
-   return false;
-}
-
 void app_set_led (uint16_t id, bool led_state)
 {
-   /* Important:
-    * The Linux sample application uses a script to set the LED state,
-    * for easy adaption to different development boards.
-    *
-    * The script typically writes to files in the /sys directory to set LED
-    * state via GPIO operations. If you do not have any physical LEDs you can
-    * use a script that writes to regular files instead.
-    *
-    * However, file operations shall be avoided within the main task
-    * in a real application. File operations may affect the timing of the
-    * Profinet communication depending on file system implementation.
-    */
-
-   char id_str[7] = {0}; /** Terminated string */
-   const char * argv[4];
-   
-   sprintf (id_str, "%u", id);
-   id_str[sizeof (id_str) - 1] = '\0';
-
-   argv[0] = "set_profinet_leds";
-   argv[1] = (char *)&id_str;
-   argv[2] = (led_state == 1) ? "1" : "0";
-   argv[3] = NULL;
-
-   if (pnal_execute_script (argv) != 0)
-   {
-      printf ("Failed to set LED state\n");
-   }
+	APP_LOG_DEBUG("LED %u set to %s\n", id, (led_state) ? "\e[92mon\e[0m" : "\e[31moff\e[0m");
 }
 
 /** Update configuration with file storage path.
@@ -361,27 +280,6 @@ static int app_pnet_cfg_init_storage (
       return -1;
    }
 
-   if (p_args->path_button1[0] != '\0')
-   {
-      if (!pnal_does_file_exist (p_args->path_button1))
-      {
-         printf (
-            "Error: The given input file for Button1 does not exist: %s\n",
-            p_args->path_button1);
-         return -1;
-      }
-   }
-
-   if (p_args->path_button2[0] != '\0')
-   {
-      if (!pnal_does_file_exist (p_args->path_button2))
-      {
-         printf (
-            "Error: The given input file for Button2 does not exist: %s\n",
-            p_args->path_button2);
-         return -1;
-      }
-   }
    return 0;
 }
 
@@ -408,7 +306,7 @@ int main (int argc, char * argv[])
                       ? APP_LOG_LEVEL_FATAL - app_args.verbosity
                       : APP_LOG_LEVEL_DEBUG;
    app_log_set_log_level (app_log_level);
-   printf ("\n** Starting P-Net sample application " PNET_VERSION " **\n");
+   printf ("\n** Starting data acquisition program **\n");
 
    APP_LOG_INFO (
       "Number of slots:      %u (incl slot for DAP module)\n",
@@ -417,8 +315,6 @@ int main (int argc, char * argv[])
    APP_LOG_INFO ("App log level:        %u (DEBUG=0, FATAL=4)\n", app_log_level);
    APP_LOG_INFO ("Max number of ports:  %u\n", PNET_MAX_PHYSICAL_PORTS);
    APP_LOG_INFO ("Network interfaces:   %s\n", app_args.eth_interfaces);
-   APP_LOG_INFO ("Button1 file:         %s\n", app_args.path_button1);
-   APP_LOG_INFO ("Button2 file:         %s\n", app_args.path_button2);
    APP_LOG_INFO ("Default station name: %s\n", app_args.station_name);
 
    /* Prepare configuration */

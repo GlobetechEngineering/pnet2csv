@@ -102,8 +102,6 @@ install (FILES
 
 file(COPY
   src/ports/linux/set_network_parameters
-  src/ports/linux/set_profinet_leds
-  src/ports/linux/set_profinet_leds.raspberrypi
   DESTINATION
   ${PROFINET_BINARY_DIR}/
   )
