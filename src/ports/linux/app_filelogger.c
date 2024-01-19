@@ -186,11 +186,10 @@ void log_thread_main(void * arg)
 				curr_log_start = entry_ts;
 				int ret = startLogFile(&current_log, &curr_log_start);
 				while(ret == -1) {
-					APP_LOG_INFO("\nretrying... ");
+					APP_LOG_WARNING("Failed to start log, retrying\n");
 					os_usleep(500);
 					ret = startLogFile(&current_log, &curr_log_start);
 				}
-				APP_LOG_INFO("\e[90mfd=%d\e[0m\n", current_log.fd);
 				
 				/* ready to process again */
 				os_mutex_lock(mutex);
@@ -266,7 +265,7 @@ bool DTLs_for_same_log(DTL_data_t *ts_1, DTL_data_t *ts_2)
 	}
 }
 
-int openLogDir() {
+int getLogDir() {
 	static int logdir_fd = -1;
 	int ret;
 	
@@ -300,6 +299,22 @@ int openLogDir() {
 	return logdir_fd;
 }
 
+DIR *openLogDir() {
+	int logdir_fd = getLogDir();
+	if(logdir_fd == -1)
+		return NULL;
+	
+	int fd = openat(logdir_fd, ".", O_DIRECTORY);
+	if(fd == -1)
+		return NULL;
+	
+	DIR *logdir = fdopendir(fd);
+	if(logdir == NULL)
+		return NULL;
+	
+	return logdir;
+}
+
 int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 {
 	/* reusing log_file because the buffers are large */
@@ -309,7 +324,7 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 	char date[16];
 	sprintf(date, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
 	
-	int logdir_fd = openLogDir();
+	int logdir_fd = getLogDir();
 	if(logdir_fd == -1)
 		return -1;
 	
@@ -358,8 +373,6 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 		return -1;
 	}
 	
-	APP_LOG_INFO("Starting %s/%s... ", date, fname);
-	
 	log_file->fd = fd;
 	log_file->bigendian = true;
 	
@@ -367,6 +380,8 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 	if(ret == -1) {
 		return -1;
 	}
+	
+	APP_LOG_INFO("Started %s/%s\n", date, fname);
 	
 	return 0;
 }
@@ -523,22 +538,19 @@ int finishLogGroup(DTL_data_t *timeframe)
 
 void archive_thread_main(void *arg)
 {
-	/* TODO the code to deal with a directory should be split out,
-	   and this function invokes it on all finished directories that might be hanging around */
-	int ret;
 	
 	DTL_data_t *timeframe = (DTL_data_t *) arg;
-	
-	char directory[16], archive[24];
-	sprintf(directory, "%4u%02u%02u", timeframe->year, timeframe->month, timeframe->day);
-	sprintf(archive, "%s.tgz", directory);
+	uint16_t year = timeframe->year;
+	uint8_t month = timeframe->month;
+	uint8_t day   = timeframe->day;
 	
 	/* got the data, let the logging thread continue */
 	os_sem_signal(finishDataSemaphore);
 	
-	int logdir_fd = openLogDir();
+	int logdir_fd = getLogDir();
 	if(logdir_fd == -1)
 		return;
+	int ret;
 	
 	/* delete old archives if not much space is available */
 	struct statvfs statbuf;
@@ -558,8 +570,54 @@ void archive_thread_main(void *arg)
 		APP_LOG_WARNING("Archiving: \e[33mCould not set scheduling policy\e[0m\n");
 	}
 	
+	DIR *logdir = openLogDir();
+	if(logdir == NULL)
+		return;
+	
+	struct dirent *entry;
+	
+	for(entry = readdir(logdir); entry != NULL; entry = readdir(logdir)) {
+		if(entry->d_type != DT_DIR && entry->d_type != DT_UNKNOWN)
+			continue;
+		   
+		unsigned short int _year, _month, _day;
+		char end;
+		
+		int matches = sscanf(entry->d_name, "%4hu%2hu%2hu%c", &_year, &_month, &_day, &end);
+		
+		if(matches != 3)
+			continue;
+		
+		if(_year > year)
+			continue;
+		else if(_year == year) {
+			if(_month > month)
+				continue;
+			else if(_month == month) {
+				if(_day > day)
+					continue;
+			}
+		}
+
+		compressDirectory(entry->d_name);
+	}
+	
+	/* also closes fd */
+	if(closedir(logdir) == -1)
+		return;
+	
+}
+
+int compressDirectory(char *directory) {
 	pid_t child_pid;
 	int status;
+	char archive[24];
+	
+	sprintf(archive, "%s.tgz", directory);
+	
+	int logdir_fd = getLogDir();
+	if(logdir_fd == -1)
+		return -1;
 	
 	child_pid = fork();
 	if(child_pid == 0) {
@@ -570,7 +628,7 @@ void archive_thread_main(void *arg)
 		
 		if(fchdir(logdir_fd) == -1) {
 			APP_LOG_ERROR("Archiving: could not set working directory\n");
-			return;
+			exit(EXIT_FAILURE);
 		}
 		
 		/* xz might yield better ratio,
@@ -586,7 +644,7 @@ void archive_thread_main(void *arg)
 	}
 	else if(child_pid == -1) {
 		APP_LOG_ERROR("Archiving: \e[31mFailed to instantiate for %s\e[0m\n", directory);
-		return;
+		return -1;
 	}
 	
 	APP_LOG_INFO("Archiving %s...\n", directory);
@@ -596,20 +654,20 @@ void archive_thread_main(void *arg)
 	if(WIFEXITED(status) && WEXITSTATUS(status) != 0) {
 		APP_LOG_ERROR("Archiving: \e[31mFailed to archive %s\e[0m\n", archive);
 		/* os_thread_create doesn't want us to return a value */
-		return;
+		return -1;
 	}
 	
 	/* delete the now-compressed directory */
 	int dir_fd = openat(logdir_fd, directory, O_DIRECTORY);
 	if(dir_fd == -1) {
 		APP_LOG_ERROR("Archiving: Failed to open %s\n", directory);
-		return;
+		return -1;
 	}
 	
 	DIR *loggroup_dirp = fdopendir(dir_fd);
 	if(loggroup_dirp == NULL) {
 		APP_LOG_ERROR("Archiving: Failed to open %s\n", directory);
-		return;
+		return -1;
 	}
 		
 	struct dirent *entry;
@@ -629,19 +687,21 @@ void archive_thread_main(void *arg)
 	}
 	
 	if(closedir(loggroup_dirp) == -1)
-		return;
+		return -1;
 	
 	if(unlinkat(logdir_fd, directory, AT_REMOVEDIR) == -1) {
 		APP_LOG_WARNING("Archiving: \e[31mFailed to delete %s\e[0m\n", directory);
-		return;
+		return -1;
 	}
 	
 	APP_LOG_INFO("Archiving: \e[32mArchived %s as \e[92m%s\e[0m\n", directory, archive);
+	
+	return 0;
 }
 
 int deleteOldest()
 {
-	DIR *dirp = opendir(".");
+	DIR *dirp = openLogDir();
 	if(dirp == NULL) {
 		return -1;
 	}
@@ -654,6 +714,10 @@ int deleteOldest()
 	for(entry = readdir(dirp); entry != NULL; entry = readdir(dirp)) {
 		/* components are fixed-length and zero-padded
 		   - strcmp could be appropriate? */
+		   
+		if(entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN)
+			continue;
+		   
 		unsigned short int _year, _month, _day;
 		char end;
 		
@@ -690,6 +754,7 @@ int deleteOldest()
 		}
 	}
 	
+	/* also closes fd */
 	if(closedir(dirp) == -1)
 		return -1;
 	

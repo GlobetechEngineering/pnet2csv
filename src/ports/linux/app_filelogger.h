@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+#include <dirent.h>
+
 #include "app_data.h"
 #include "app_gsdml.h"
 #include "osal.h"
@@ -79,12 +81,20 @@ int initialiseLoggerThread(entry_buffer_t *entries);
 bool DTLs_for_same_log(DTL_data_t *ts_1, DTL_data_t *ts_2);
 
 /**
- * Provide file descriptor the log folder, creating the relevant directories
+ * Provide file descriptor for the log folder, creating the relevant directories
  * if necessary, and reusing the descriptor if already open
  *
  * @return The file descriptor, -1 on error
  */
-int openLogDir();
+int getLogDir();
+
+/**
+ * Open a new directory stream for the log folder,
+ * for use with readdir
+ *
+ * @return The directory pointer, NULL on error
+ */
+DIR *openLogDir();
 
 /**
  * Start a new log in storage, assigning fd and flushing headers
@@ -117,6 +127,14 @@ int finishLogFile(
  * @param timeframe        In:     The day that was finished
  */
 int finishLogGroup(DTL_data_t *timeframe);
+
+/**
+ * Create a compressed archive of the directory and delete the original
+ * @param directory        In: Name of the directory under log directory
+ *
+ * @return 0 on success, -1 on error
+ */
+int compressDirectory(char *directory);
 
 /**
  * Identifies the oldest archive and deletes it
