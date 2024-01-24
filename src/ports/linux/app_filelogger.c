@@ -274,7 +274,7 @@ int getLogDir() {
 	
 	/* FHS says /var/opt is required to exist, so assume it does */
 	
-	ret = mkdir("/var/opt/pnlogger", S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+	ret = mkdir("/var/opt/pnlogger", S_IRWXU | S_IRWXG | S_IRWXO);
 	if(ret == -1 && errno != EEXIST) {
 		APP_LOG_ERROR("Failed to create /var/opt/pnlogger\n");
 		return -1;
@@ -319,7 +319,6 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 {
 	/* reusing log_file because the buffers are large */
 	log_file->buf_end = 0;
-	app_read_log_parameters(log_file->log_id);
 	
 	char date[16];
 	sprintf(date, "%4d%02d%02d", timeframe->year, timeframe->month, timeframe->day);
@@ -388,7 +387,8 @@ int startLogFile(log_file_t *log_file, DTL_data_t *timeframe)
 
 int writeLogHeader(log_file_t *log_file)
 {
-	unsigned int header_size = 4+3+1+APP_GSDML_INSTALLATIONID_LENGTH+1;
+	/* magic, endian, version, word count */
+	unsigned int header_size = 4+2+1+1;
 	uint8_t header[header_size];
 	
 	/* Assert the format of the file */
@@ -401,23 +401,18 @@ int writeLogHeader(log_file_t *log_file)
 	if(log_file->bigendian) {
 		header[4] = 0x50;
 		header[5] = 0x4E;
-		header[6] = 0x4C;
 	}
 	else {
-		header[4] = 0x4C;
-		header[5] = 0x4E;
-		header[6] = 0x50;
+		header[4] = 0x4E;
+		header[5] = 0x50;
 	}
 	
 	/* version */
-	header[7] = 0;
-	
-	/* ID */
-	memcpy(header+8, log_file->log_id, APP_GSDML_INSTALLATIONID_LENGTH);
+	header[6] = 1;
 	
 	/* word count */
 	/* digital size is bytes and words are 2 */
-	header[8+APP_GSDML_INSTALLATIONID_LENGTH] = APP_GSDML_VAR64_DATA_DIGITAL_SIZE/2;
+	header[7] = APP_GSDML_VAR64_DATA_DIGITAL_SIZE/2;
 	
 	/* all done, write it */
 	ssize_t written = write(log_file->fd, header, header_size);
@@ -562,14 +557,6 @@ void archive_thread_main(void *arg)
 		ret = fstatvfs(logdir_fd, &statbuf);
 	}
 	
-	/* set scheduling policy to normal */
-	APP_LOG_DEBUG("Setting SCHED_OTHER\n");
-	struct sched_param schedparam = {0};
-	ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
-	if(ret != 0) {
-		APP_LOG_WARNING("Archiving: \e[33mCould not set scheduling policy\e[0m\n");
-	}
-	
 	DIR *logdir = openLogDir();
 	if(logdir == NULL)
 		return;
@@ -622,6 +609,14 @@ int compressDirectory(char *directory) {
 	child_pid = fork();
 	if(child_pid == 0) {
 		/* this is the child */
+	
+		/* set scheduling policy to normal */
+		APP_LOG_DEBUG("Setting SCHED_OTHER\n");
+		struct sched_param schedparam = {0};
+		int ret = pthread_setschedparam(pthread_self(), SCHED_OTHER, &schedparam);
+		if(ret != 0) {
+			APP_LOG_WARNING("Archiving: \e[33mCould not set scheduling policy\e[0m\n");
+		}
 		
 		/* reduce the priority some more */
 		nice(10);

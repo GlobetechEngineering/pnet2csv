@@ -94,10 +94,6 @@ extern "C" {
 #define APP_GSDML_LOGBOOK_ERROR_CODE_2 0x00       /* Manufacturer specific */
 #define APP_GSDML_LOGBOOK_ENTRY_DETAIL 0xFEE1DEAD /* Manufacturer specific */
 
-#define APP_GSDML_PARAMETER_INSTALLATIONID_IDX  123
-
-#define APP_GSDML_INSTALLATIONID_LENGTH   8
-
 #define APP_GSDML_DEFAULT_MAUTYPE 0x10 /* Copper 100 Mbit/s Full duplex */
 
 typedef struct app_gsdml_module

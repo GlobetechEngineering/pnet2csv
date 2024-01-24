@@ -28,14 +28,6 @@
 
 #define APP_DATA_DEFAULT_OUTPUT_DATA 0
 
-/* Parameter data for digital submodules
- * The stored value is shared between all digital submodules in this example.
- *
- * Todo: Data is always in pnio data format. Add conversion to uint32_t.
- */
- 
-static uint8_t installationid[APP_GSDML_INSTALLATIONID_LENGTH] = {0};
-
 /* Digital submodule process data
  * The GSD dictates there's only one module, so it better be alright to use single variables */
 static uint8_t variabledata[APP_GSDML_VAR64_DATA_DIGITAL_SIZE] = {0};
@@ -136,10 +128,6 @@ int app_data_write_parameter (
       return -1;
    }
    
-    if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
-	    memcpy(&installationid, data, length);
-    }
-	
    APP_LOG_DEBUG ("  Writing parameter \"%s\"\n", par_cfg->name);
    app_log_print_bytes (APP_LOG_LEVEL_DEBUG, data, length);
 
@@ -180,23 +168,9 @@ int app_data_read_parameter (
 
    APP_LOG_DEBUG ("  Reading \"%s\"\n", par_cfg->name);
    
-    if(index == APP_GSDML_PARAMETER_INSTALLATIONID_IDX) {
-		*data = (uint8_t *) &installationid;
-		*length = sizeof (installationid);
-	}
-   
    app_log_print_bytes (APP_LOG_LEVEL_DEBUG, *data, *length);
 
    return 0;
-}
-
-int app_read_log_parameters (
-	uint8_t parm_installid[APP_GSDML_INSTALLATIONID_LENGTH])
-{
-	/* Make a copy */
-	memcpy(parm_installid, installationid, APP_GSDML_INSTALLATIONID_LENGTH);
-	
-	return 0;
 }
 
 int app_read_log_data(

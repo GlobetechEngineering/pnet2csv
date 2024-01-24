@@ -39,8 +39,6 @@ typedef struct log_file
 	size_t buf_end;
 	
 	bool bigendian;
-	uint8_t log_id[APP_GSDML_INSTALLATIONID_LENGTH];
-	/* first, last timestamp ? */
 } log_file_t;
 
 #define LOG_THREAD_PRIORITY  12
