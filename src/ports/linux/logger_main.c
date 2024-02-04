@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #if PNET_MAX_PHYSICAL_PORTS == 1
 #define APP_DEFAULT_ETHERNET_INTERFACE "eth0"
@@ -92,7 +93,7 @@ void show_usage()
       APP_GSDML_DEFAULT_STATION_NAME);
    printf ("                if not already available in storage file.\n");
    printf ("   -p PATH      Absolute path to storage directory. Defaults to "
-           "use current directory.\n");
+           "/var/opt/pnlogger\n");
 #if PNET_OPTION_DRIVER_ENABLE
    printf ("   -m MODE      Application offload mode. Only used if P-Net is\n");
    printf ("                built with hw offload enabled "
@@ -127,7 +128,7 @@ app_args_t parse_commandline_arguments (int argc, char * argv[])
    }
 
    /* Default values */
-   strcpy (output_arguments.path_storage_directory, "");
+   strcpy (output_arguments.path_storage_directory, "/var/opt/pnlogger");
    strcpy (output_arguments.station_name, APP_GSDML_DEFAULT_STATION_NAME);
    strcpy (output_arguments.eth_interfaces, APP_DEFAULT_ETHERNET_INTERFACE);
    output_arguments.verbosity = 0;
@@ -202,7 +203,8 @@ app_args_t parse_commandline_arguments (int argc, char * argv[])
       }
    }
 
-   /* Use current directory for storage, if not given */
+   /* Use current directory for storage, if not given
+      (or rather, provided as empty, if that's possible) */
    if (strlen (output_arguments.path_storage_directory) == 0)
    {
       if (
@@ -264,6 +266,23 @@ static int app_pnet_cfg_init_storage (
    pnet_cfg_t * p_cfg,
    const app_args_t * p_args)
 {
+	/* initialise the subdirectory for data */
+	
+	int ret;
+	
+	/* FHS says /var/opt is required to exist, so assume it does */
+	ret = mkdir("/var/opt/pnlogger", S_IRWXU | S_IRWXG | S_IRWXO);
+	if(ret == -1 && errno != EEXIST) {
+		APP_LOG_ERROR("Failed to create /var/opt/pnlogger\n");
+		return -1;
+	}
+	
+	ret = mkdir("/var/opt/pnlogger/data", S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
+	if(ret == -1 && errno != EEXIST) {
+		APP_LOG_ERROR("Failed to create /var/opt/pnlogger/data\n");
+		return -1;
+	}
+
    strcpy (p_cfg->file_directory, p_args->path_storage_directory);
 
    if (p_args->verbosity > 0)

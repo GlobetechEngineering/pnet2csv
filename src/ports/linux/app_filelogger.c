@@ -272,22 +272,6 @@ int getLogDir() {
 	if(logdir_fd != -1)
 		return logdir_fd;
 	
-	/* FHS says /var/opt is required to exist, so assume it does */
-	
-	ret = mkdir("/var/opt/pnlogger", S_IRWXU | S_IRWXG | S_IRWXO);
-	if(ret == -1 && errno != EEXIST) {
-		APP_LOG_ERROR("Failed to create /var/opt/pnlogger\n");
-		return -1;
-	}
-	
-	ret = mkdir("/var/opt/pnlogger/data", S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
-	if(ret == -1 && errno != EEXIST) {
-		APP_LOG_ERROR("Failed to create /var/opt/pnlogger/data\n");
-		return -1;
-	}
-	
-	/* Sure would be nice if O_CREAT | O_DIRECTORY did the logical thing! */
-	
 	ret = open("/var/opt/pnlogger/data", O_DIRECTORY);
 	if(ret == -1) {
 		APP_LOG_ERROR("Failed to open /var/opt/pnlogger/data\n");

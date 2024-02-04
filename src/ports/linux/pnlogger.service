@@ -13,7 +13,6 @@ ExecStartPre=/sbin/ifconfig eth0 up
 ExecStartPre=/bin/sh -c '/bin/echo "49152 60999" > /proc/sys/net/ipv4/ip_local_port_range'
 # Enable this line if waiting for snmpd to start
 #ExecStartPre=/usr/bin/sleep 1.0
-WorkingDirectory=/var/opt/pnlogger
 ExecStart=/opt/pnlogger/bin/pn_dev -vvvv
 Restart=always
 RestartSec=3
