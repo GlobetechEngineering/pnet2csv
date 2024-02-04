@@ -221,35 +221,6 @@ app_args_t parse_commandline_arguments (int argc, char * argv[])
    return output_arguments;
 }
 
-/**
- * Read a bool from a file
- *
- * @param filepath      In: Path to file
- * @return true if file exists and the first character is '1'
- */
-bool read_bool_from_file (const char * filepath)
-{
-   FILE * fp;
-   char ch;
-   int eof_indicator;
-
-   fp = fopen (filepath, "r");
-   if (fp == NULL)
-   {
-      return false;
-   }
-
-   ch = fgetc (fp);
-   eof_indicator = feof (fp);
-   fclose (fp);
-
-   if (eof_indicator)
-   {
-      return false;
-   }
-   return ch == '1';
-}
-
 void app_set_led (uint16_t id, bool led_state)
 {
 	APP_LOG_DEBUG("LED %u set to %s\n", id, (led_state) ? "\e[92mon\e[0m" : "\e[31moff\e[0m");
