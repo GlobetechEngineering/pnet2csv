@@ -253,6 +253,11 @@ static int app_pnet_cfg_init_storage (
 		APP_LOG_ERROR("Failed to create /var/opt/pnlogger/data\n");
 		return -1;
 	}
+	
+	/* I'm serious */
+	ret = chmod("/var/opt/pnlogger", 00777);
+	if(ret == -1)
+		perror("chmod");
 
    strcpy (p_cfg->file_directory, p_args->path_storage_directory);
 
