@@ -174,17 +174,20 @@ void log_thread_main(void * arg)
 				
 				if(current_log.fd >= 0) {
 					finishLogFile(&current_log, true);
-					
-					if(    entry_ts.day   != curr_log_start.day
-						|| entry_ts.month != curr_log_start.month
-						|| entry_ts.year  != curr_log_start.year
-					) {
-						finishLogGroup(&curr_log_start);
-					}
+				}
+				
+				int ret;
+				
+				/* delete old files if not much space is available */
+				struct statvfs statbuf;
+				ret = fstatvfs(getLogDir(), &statbuf);
+				if(ret == 0 && 100 * statbuf.f_bfree / statbuf.f_blocks < FREE_SPACE_PERCENT) {
+					APP_LOG_INFO("\e[33m%lu/%lu\e[0m blocks available, clearing space...\n", statbuf.f_bfree, statbuf.f_blocks);
+					deleteOldest();
 				}
 				
 				curr_log_start = entry_ts;
-				int ret = startLogFile(&current_log, &curr_log_start);
+				ret = startLogFile(&current_log, &curr_log_start);
 				while(ret == -1) {
 					APP_LOG_WARNING("Failed to start log, retrying\n");
 					os_usleep(500);
@@ -517,7 +520,6 @@ int finishLogGroup(DTL_data_t *timeframe)
 
 void archive_thread_main(void *arg)
 {
-	
 	DTL_data_t *timeframe = (DTL_data_t *) arg;
 	uint16_t year = timeframe->year;
 	uint8_t month = timeframe->month;
@@ -658,7 +660,6 @@ int compressDirectory(char *directory) {
 			continue;
 		}
 		
-		/* use unlinkat because "rmdirat" does not exist */
 		if(unlinkat(dir_fd, entry->d_name, 0) == -1) {
 			APP_LOG_WARNING("Archiving: \e[31mFailed to delete %s\e[0m\n", entry->d_name);
 			/* keep going anyway */
@@ -668,6 +669,7 @@ int compressDirectory(char *directory) {
 	if(closedir(loggroup_dirp) == -1)
 		return -1;
 	
+	/* use unlinkat because "rmdirat" does not exist */
 	if(unlinkat(logdir_fd, directory, AT_REMOVEDIR) == -1) {
 		APP_LOG_WARNING("Archiving: \e[31mFailed to delete %s\e[0m\n", directory);
 		return -1;
@@ -680,6 +682,8 @@ int compressDirectory(char *directory) {
 
 int deleteOldest()
 {
+	int ret;
+	
 	DIR *dirp = openLogDir();
 	if(dirp == NULL) {
 		return -1;
@@ -687,6 +691,7 @@ int deleteOldest()
 	
 	/* date of oldest */
 	unsigned short int year = 9999, month = 99, day = 99;
+	char oldest[16];
 	
 	struct dirent *entry;
 	
@@ -694,15 +699,16 @@ int deleteOldest()
 		/* components are fixed-length and zero-padded
 		   - strcmp could be appropriate? */
 		   
-		if(entry->d_type != DT_REG && entry->d_type != DT_UNKNOWN)
-			continue;
-		   
 		unsigned short int _year, _month, _day;
-		char end;
+		char end[8];
 		
-		int matches = sscanf(entry->d_name, "%4hu%2hu%2hu.tgz%c", &_year, &_month, &_day, &end);
+		int matches = sscanf(entry->d_name, "%4hu%2hu%2hu%7s", &_year, &_month, &_day, end);
 		
-		if(matches != 3)
+		if(matches < 3)
+			continue;
+		
+		/* only accept yyyymmdd or yyyymmdd.tgz */
+		if(strlen(end) > 0 && strcmp(end, ".tgz") != 0)
 			continue;
 		
 		if(_year > year)
@@ -711,6 +717,7 @@ int deleteOldest()
 			year = _year;
 			month = _month;
 			day = _day;
+			strcpy(oldest, entry->d_name);
 			continue;
 		}
 			
@@ -720,6 +727,7 @@ int deleteOldest()
 			year = _year;
 			month = _month;
 			day = _day;
+			strcpy(oldest, entry->d_name);
 			continue;
 		}
 		
@@ -729,6 +737,7 @@ int deleteOldest()
 			year = _year;
 			month = _month;
 			day = _day;
+			strcpy(oldest, entry->d_name);
 			continue;
 		}
 	}
@@ -742,16 +751,58 @@ int deleteOldest()
 		return -1;
 	}
 	
-	char fname[16];
-	sprintf(fname, "%04hu%02hu%02hu.tgz", year, month, day);
-	int ret = unlink(fname);
+	int logdir_fd = getLogDir();
+	if(logdir_fd == -1)
+		return -1;
 	
+	struct stat statbuf;
+	ret = fstatat(logdir_fd, oldest, &statbuf, 0);
 	if(ret == -1) {
-		APP_LOG_ERROR("\e[91mFailed to delete %s\e[0m\n", fname);
+		APP_LOG_ERROR("%s: stat failed\n", oldest);
 		return -1;
 	}
 	
-	APP_LOG_INFO("\e[35mDeleted %s\e[0m\n", fname);
+	if((statbuf.st_mode & S_IFMT) == S_IFDIR) {
+		/* unlink children */
+		int dir_fd = openat(logdir_fd, oldest, O_DIRECTORY);
+		if(dir_fd == -1) {
+			APP_LOG_ERROR("Rotation: Failed to open %s\n", oldest);
+			return -1;
+		}
+		
+		DIR *oldest_dirp = fdopendir(dir_fd);
+		if(oldest_dirp == NULL) {
+			APP_LOG_ERROR("Rotation: Failed to open %s\n", oldest);
+			return -1;
+		}
+			
+		struct dirent *entry;
+		
+		for(entry = readdir(oldest_dirp); entry != NULL; entry = readdir(oldest_dirp)) {
+			if(entry->d_name[0] == '.'
+			   && (entry->d_name[1] == '\0' || (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+				/* I'm so glad these appear in every directory listing */
+				continue;
+			}
+			
+			if(unlinkat(dir_fd, entry->d_name, 0) == -1) {
+				APP_LOG_WARNING("Rotation: \e[31mFailed to delete %s\e[0m\n", entry->d_name);
+				/* keep going anyway */
+			}
+		}
+		
+		if(closedir(oldest_dirp) == -1)
+			return -1;
+	}
+	
+	int dirflag = ((statbuf.st_mode & S_IFMT) == S_IFDIR) ? AT_REMOVEDIR : 0;
+	
+	if(unlinkat(logdir_fd, oldest, dirflag) == -1) {
+		APP_LOG_WARNING("Rotation: \e[31mFailed to delete %s\e[0m\n", oldest);
+		return -1;
+	}
+	
+	APP_LOG_INFO("Rotation: \e[35mDeleted %s\e[0m\n", oldest);
 	
 	return 0;
 }
